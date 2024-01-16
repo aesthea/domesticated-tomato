@@ -111,11 +111,11 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
 
     if LSTM:
         print("LSTM ON")
-        o1 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(o1.shape[-1] // 2, return_sequences=True))(o1)
-        o2 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(o2.shape[-1] // 2, return_sequences=True))(o2)
-        o3 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(o3.shape[-1] // 2, return_sequences=True))(o3)
-        o4 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(o4.shape[-1] // 2, return_sequences=True))(o4)
-        o5 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(o5.shape[-1] // 2, return_sequences=True))(o5)
+        c1 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c1.shape[-1], return_sequences=True))(c1)
+        c2 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c2.shape[-1], return_sequences=True))(c2)
+        c3 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c3.shape[-1], return_sequences=True))(c3)
+        c4 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c4.shape[-1], return_sequences=True))(c4)
+        c5 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c5.shape[-1], return_sequences=True))(c5)
 
     #print("FPN output", c1.shape,c2.shape,c3.shape,c4.shape, c5.shape)
     
