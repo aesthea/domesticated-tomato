@@ -109,46 +109,41 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
     o1, o2, o3, o4, o5 = FPN(o1, o2, o3, o4, o5, 3, 'relu', dropout, bi)
     c1, c2, c3, c4, c5 = FPN(o1, o2, o3, o4, o5, 3, 'relu', dropout, bi)
 
-    if LSTM:
-        print("LSTM ON")
-        c1 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c1.shape[-1], return_sequences=True))(c1)
-        c2 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c2.shape[-1], return_sequences=True))(c2)
-        c3 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c3.shape[-1], return_sequences=True))(c3)
-        c4 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c4.shape[-1], return_sequences=True))(c4)
-        c5 = tf.keras.layers.TimeDistributed(tf.keras.layers.LSTM(c5.shape[-1], return_sequences=True))(c5)
-
-    #print("FPN output", c1.shape,c2.shape,c3.shape,c4.shape, c5.shape)
-    
     L1 = tf.keras.layers.GlobalAveragePooling2D()(c1)
     L2 = tf.keras.layers.GlobalAveragePooling2D()(c2)
     L3 = tf.keras.layers.GlobalAveragePooling2D()(c3)
     L4 = tf.keras.layers.GlobalAveragePooling2D()(c4)
     L5 = tf.keras.layers.GlobalAveragePooling2D()(c5)
-    
-##    L1 = tf.keras.layers.GlobalMaxPooling2D()(c1)
-##    L2 = tf.keras.layers.GlobalMaxPooling2D()(c2)
-##    L3 = tf.keras.layers.GlobalMaxPooling2D()(c3)
-##    L4 = tf.keras.layers.GlobalMaxPooling2D()(c4)
-##    L5 = tf.keras.layers.GlobalMaxPooling2D()(c5)
 
-    #print("C",c1.shape,c2.shape,c3.shape,c4.shape, c5.shape)
-    #print("L",L1.shape,L2.shape,L3.shape,L4.shape, L5.shape)
+    #print(L1.shape, L2.shape, L3.shape, L4.shape, L5.shape)
+    if LSTM:
+        print("LSTM ON")
+        #c1 = tf.keras.layers.TimeDistributed(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(c1.shape[-1], return_sequences=True)))(c1)
+        #c2 = tf.keras.layers.TimeDistributed(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(c2.shape[-1], return_sequences=True)))(c2)
+        #c3 = tf.keras.layers.TimeDistributed(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(c3.shape[-1], return_sequences=True)))(c3)
+        #c4 = tf.keras.layers.TimeDistributed(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(c4.shape[-1], return_sequences=True)))(c4)
+        #c5 = tf.keras.layers.TimeDistributed(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(c5.shape[-1], return_sequences=True)))(c5)
+
+        L1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(L1.shape[-1], return_sequences=True))(tf.reshape(L1, (-1, 1, L1.shape[-1])))
+        L1 = tf.reshape(L1, (-1, L1.shape[-1]))
+        #L2 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(L2.shape[-1], return_sequences=True))(tf.reshape(L2, (-1, 1, L2.shape[-1])))
+        #L2 = tf.reshape(L2, (-1, L2.shape[-1]))
+        #L3 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(L3.shape[-1], return_sequences=True))(tf.reshape(L3, (-1, 1, L3.shape[-1])))
+        #L3 = tf.reshape(L3, (-1, L3.shape[-1]))
+        #L4 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(L4.shape[-1], return_sequences=True))(tf.reshape(L4, (-1, 1, L4.shape[-1])))
+        #L4 = tf.reshape(L4, (-1, L4.shape[-1]))
+        #L5 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(L5.shape[-1], return_sequences=True))(tf.reshape(L5, (-1, 1, L5.shape[-1])))
+        #L5 = tf.reshape(L5, (-1, L5.shape[-1]))
+
 
     r = tf.keras.layers.Concatenate(axis=-1)([L1, L2, L3, L4, L5])
-
     r = tf.keras.layers.Dropout(dropout)(r)
 
-    #print("regression", r.shape)
-    #b = tf.keras.layers.Dense(4 * items, activation = "sigmoid", kernel_initializer='ones',kernel_regularizer=tf.keras.regularizers.L1(0.001), activity_regularizer=tf.keras.regularizers.L2(0.001))(r)
-    #b = tf.keras.layers.Dense(4 * items, activation = "sigmoid")(r)
     b = tf.keras.layers.Dense(4 * items)(r)
     b = tf.keras.layers.Reshape([items, 4])(b)
     b = tf.keras.layers.Activation('sigmoid')(b)
     regression = tf.keras.layers.Layer(name = "regression")(b)
 
-    #print("classification", r.shape)
-    #c = tf.keras.layers.Dense(num_classes * items, activation = "relu")(r)
-    #c = tf.keras.layers.Dense(num_classes * items, activation = "relu", kernel_initializer='zeros',kernel_regularizer=tf.keras.regularizers.L1(0.001), activity_regularizer=tf.keras.regularizers.L2(0.001))(r)
     c = tf.keras.layers.Dense(num_classes * items)(r)
     c = tf.keras.layers.Reshape([items, num_classes])(c)
     c = tf.keras.layers.BatchNormalization(axis=-1)(c)
@@ -156,13 +151,10 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
     classification = tf.keras.layers.Layer(name = "classification")(c)
     
     model = tf.keras.Model(x_in, [classification, regression])
-    #print(model.output)
     return model
 
 
 def FPN(i1, i2, i3, i4, i5, KERNELS = 3, end_activation = "relu", dropout = 0.2, bi = False):
-    #print("in", i1.shape, i2.shape, i3.shape, i4.shape, i5.shape)
-
     pool_size_2_1 = i1.shape[1] // i2.shape[1]
     pool_size_3_2 = i2.shape[1] // i3.shape[1]
     pool_size_4_3 = i3.shape[1] // i4.shape[1]
@@ -222,7 +214,6 @@ def FPN(i1, i2, i3, i4, i5, KERNELS = 3, end_activation = "relu", dropout = 0.2,
     o4 = tf.keras.layers.Dropout(dropout)(o4)
     o5 = tf.keras.layers.Dropout(dropout)(o5)
     
-    #print("out", o1.shape, o2.shape, o3.shape, o4.shape, o5.shape)
     return o1, o2, o3, o4, o5
 
 def regression_loss(y_true, y_pred):

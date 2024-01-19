@@ -89,25 +89,31 @@ async def handler(websocket, path, predict):
                             if predict:
                                 pil_obj, raw_data = predict(fp, show = False, rawdata = True)
 
-                                img_byte_arr = BytesIO()
-                                pil_obj.save(img_byte_arr, format='JPEG', quality = 75, optimize = True, progressive = True)
-                                img_byte_arr = img_byte_arr.getvalue()
-                                
-                                im_b64 = base64.b64encode(img_byte_arr).decode('utf-8', 'ignore')
-                                result["result"] = ",".join(['data:image/jpeg;base64', im_b64])
                                 for i, v in enumerate(raw_data):
                                     raw_data[i]["score"] = float(raw_data[i]["score"])
-                                    
                                 result["rawdata"] = raw_data
-
-                                #SAVE FOR IMAGE VERIFICATION
-                                with open(r"c:\test\result.png", "wb") as fio:
-                                    fio.write(base64.b64decode(result["result"].split(",")[1]))
-                                
-                                with open(fp,"rb") as fio:
-                                    test_b64 = base64.b64encode(fio.read()).decode()
                                     
-                                result["test"] = ",".join(['data:image/png;base64', test_b64])
+                                return_image = True
+                                if "rawdata_only" in data:
+                                    if data["rawdata_only"]:
+                                        return_image = False
+                                    
+                                if return_image:
+                                    img_byte_arr = BytesIO()
+                                    pil_obj.save(img_byte_arr, format='JPEG', quality = 75, optimize = True, progressive = True)
+                                    img_byte_arr = img_byte_arr.getvalue()
+                                    
+                                    im_b64 = base64.b64encode(img_byte_arr).decode('utf-8', 'ignore')
+                                    result["result"] = ",".join(['data:image/jpeg;base64', im_b64])
+
+                                    #SAVE FOR IMAGE VERIFICATION
+                                    with open(r"c:\test\result.png", "wb") as fio:
+                                        fio.write(base64.b64decode(result["result"].split(",")[1]))
+
+                                    with open(fp,"rb") as fio:
+                                        test_b64 = base64.b64encode(fio.read()).decode()    
+                                    result["test"] = ",".join(['data:image/png;base64', test_b64])
+                                
             asyncio.ensure_future(send(websocket, json.dumps(result, ensure_ascii = True)))
                             
     except websockets.exceptions.ConnectionClosedError as e:

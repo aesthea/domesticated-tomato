@@ -24,6 +24,7 @@ import urllib
 import efficient_det_LSTM as det
 
 
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 #AI SPEC---------------------------------------------------------------------------
 ##SPEC_LOADER = "efficient_det_S.py"
@@ -548,6 +549,8 @@ class anchor:
                 raw_result["y1"] = y1
                 raw_result["x2"] = x2
                 raw_result["y2"] = y2
+                raw_result["w"] = output_im.shape[1]
+                raw_result["h"] = output_im.shape[0]
                 raw_result["tag"] = i["tag"]
                 raw_result["color"] = i["color"]
                 raw_result["score"] = i["score"]
