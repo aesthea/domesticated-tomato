@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 0.20240119")
+        self.root.title("HARR VOTT 0.20240125")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 

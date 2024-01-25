@@ -707,9 +707,10 @@ class anchor:
 def augment(im, bbwc, seq = None):
     im = im[0]
     bbs = BoundingBoxesOnImage([BoundingBox(x1 = n[0], y1 = n[1], x2 = n[2], y2 = n[3], label = n[4]) for n in bbwc[0]], shape = im.shape[:2])
-    iaaseq = [iaa.AdditiveGaussianNoise(scale=10), \
-              iaa.Affine(translate_px={"y": (-25, 25)}), \
-              iaa.Affine(translate_px={"x": (-25, 25)}), \
+    iaaseq = [iaa.AverageBlur(k=(5, 5)),\
+              iaa.AdditiveGaussianNoise(scale=10), \
+              iaa.Affine(translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)}), \
+              iaa.Affine(scale=(0.8, 1.2)), \
               iaa.Affine(rotate=(-45, 45)), \
               iaa.Affine(shear=(-16, 16)), \
               iaa.Fliplr(0.5), \
@@ -722,7 +723,10 @@ def augment(im, bbwc, seq = None):
         for i in range(0, len(iaaseq)):
             if b[len(b) - len(iaaseq):][i] == "1":
                 s.append(iaaseq[i])
-        seq = iaa.SomeOf(2,s)
+        l = 2
+        if len(s) < 2:
+            l = len(s)
+        seq = iaa.SomeOf(l, s)
     images_aug, bbs_aug_wh = seq(image = im, bounding_boxes = bbs)
     return images_aug, bbs_aug_wh
 
