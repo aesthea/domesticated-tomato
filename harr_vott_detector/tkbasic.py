@@ -20,7 +20,7 @@ import re
 #from barcode.writer import ImageWriter
 import csv
 from functools import partial
-import HARR_VOTT_v2 as HARR_VOTT
+import HARR_VOTT
 import tk_socket_server
 
 import asyncio
@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 0.20240125")
+        self.root.title("HARR VOTT 0.20240130")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -444,8 +444,8 @@ class widget:
         
         self.lstm = BooleanVar(self.root)
         self.lstm.set(False)
-        self.lstm_checkbutton = Checkbutton(self.fpn_frame, text='LSTM',variable=self.lstm, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
-        self.lstm_checkbutton.grid(column = 2, row = 0)
+        #self.lstm_checkbutton = Checkbutton(self.fpn_frame, text='LSTM',variable=self.lstm, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
+        #self.lstm_checkbutton.grid(column = 2, row = 0)
 
         self.label(self.frame3, 300, 25, 4, 0, "Input size")
         self.input_size_frame = Frame(master = self.frame3, width = 300, height = 25)

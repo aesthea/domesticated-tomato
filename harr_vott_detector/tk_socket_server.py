@@ -20,7 +20,7 @@ import functools
 import binascii
 import warnings
 
-import HARR_VOTT_v2 as HARR_VOTT
+import HARR_VOTT
 import pickle
 
 import base64
@@ -33,7 +33,6 @@ predict = False
 if os.path.isfile("tkpik.pik"):
     with open("tkpik.pik", "rb") as fio:
         data = pickle.load(fio)
-
 
         model = HARR_VOTT.load_model(data["input_size"], data["color_channel"], data["tags"], data["region"], data["dropout"], data["fpn_mode"], data["backbone"], data["votts"])
         model.BATCH_SIZE = data["batchsize"]
@@ -74,6 +73,10 @@ async def handler(websocket, path, predict):
                 except Exception as e:
                     print("E114", e)
                     data = {}
+                    
+                if "args" in data:
+                    result["args"] = data["args"]
+                    
                 if "filename" in data and "bytes" in data:
                     fn, ext = os.path.splitext(data["filename"])
                     mimebytes = data["bytes"].split(",")
@@ -107,12 +110,12 @@ async def handler(websocket, path, predict):
                                     result["result"] = ",".join(['data:image/jpeg;base64', im_b64])
 
                                     #SAVE FOR IMAGE VERIFICATION
-                                    with open(r"c:\test\result.png", "wb") as fio:
-                                        fio.write(base64.b64decode(result["result"].split(",")[1]))
+                                    #with open(r"c:\test\result.png", "wb") as fio:
+                                    #    fio.write(base64.b64decode(result["result"].split(",")[1]))
 
-                                    with open(fp,"rb") as fio:
-                                        test_b64 = base64.b64encode(fio.read()).decode()    
-                                    result["test"] = ",".join(['data:image/png;base64', test_b64])
+                                    #with open(fp,"rb") as fio:
+                                    #    test_b64 = base64.b64encode(fio.read()).decode()    
+                                    #result["original"] = ",".join(['data:image/png;base64', test_b64])
                                 
             asyncio.ensure_future(send(websocket, json.dumps(result, ensure_ascii = True)))
                             
