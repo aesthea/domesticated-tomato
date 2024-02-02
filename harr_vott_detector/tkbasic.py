@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 0.20240130")
+        self.root.title("HARR VOTT 1.20240202")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -847,8 +847,6 @@ class widget:
                 return False
         if not self.AI_MODEL:
             self.load_AI()
-        if not self.AI_MODEL.gen:
-            self.load_AI()
         self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"])
 
 
@@ -879,7 +877,7 @@ class widget:
                                                            ("all files", "*.*")))
         #FILE = simpledialog.askstring(title="Predict", prompt="File path:")
         if os.path.isfile(filename):
-            self.AI_MODEL.anchor.predict(filename)
+            self.AI_MODEL.predict(filename)
             self.initialdir = os.path.split(filename)[0]
         
         

@@ -46,10 +46,11 @@ if os.path.isfile("tkpik.pik"):
             
         if os.path.isfile(data['savefile'] + ".pik"):
             model.load()
-            ai_function = model.anchor
-            ai_function.CROP_SIZE = (int(data['input_size']), int(data['input_size']))
-            ai_function.load_tags(data['savefile'] + ".pik")
-            predict = ai_function.predict
+            predict = model.predict
+            #ai_function = model.anchor
+            #ai_function.CROP_SIZE = (int(data['input_size']), int(data['input_size']))
+            #ai_function.load_tags(data['savefile'] + ".pik")
+            #predict = ai_function.predict
              
 
 CONNECTED = set()
@@ -197,7 +198,8 @@ def run():
             data = pickle.load(fio)
         model = HARR_VOTT.load_ai_by_pik()
         model.load()
-        predict = model.anchor.predict
+        #predict = model.anchor.predict
+        model.predict
         start_server_00 = websockets.serve(functools.partial(handler, predict=predict), port = int(data['port']))
         asyncio.get_event_loop().run_until_complete(start_server_00)
         asyncio.get_event_loop().run_forever()
