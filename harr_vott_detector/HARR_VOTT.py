@@ -21,7 +21,15 @@ from tensorflow import keras
 from tensorflow.keras.optimizers import Adam
 import tensorflow_addons as tfa
 import urllib
-import efficient_det as det
+
+#import efficient_det as det
+SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
+spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
+
+spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
+det = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(det)
+
 
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
@@ -493,7 +501,7 @@ class load_model:
                 if n < len(tags):
                     tag = tags[n]
                     tag_score = str(int(score[cnt][i] * 100)) + "%"
-                    txt = tag + " " + tag_score
+                    txt = str(tag) + " " + tag_score
                     tag_list.append({"sequence" : cnt, "score" : score[cnt][i], "box" : bb_actual[0][i], "tag" : tags[n], "class" : n, "text" : txt, "color" : colors[i]})
 
         if raw_image.shape[-1] == 1:
@@ -519,12 +527,18 @@ class load_model:
             output_im = output_im[0].numpy()
             
             for i in new_d:
+                
+                if i["tag"] in self.tag_format:
+                    TAGNAME = self.tag_format[i["tag"]]["name"]
+                else:
+                    TAGNAME = str(i["tag"])
+                #print(TAGNAME, i)
                 raw_result = {}
                 x1 = int(i["box"][1] * output_im.shape[1])
                 y1 = int(i["box"][0] * output_im.shape[0])
                 x2 = int(i["box"][3] * output_im.shape[1])
                 y2 = int(i["box"][2] * output_im.shape[0])
-                cv2.putText(output_im, i["tag"], (x1 + 1, y1 + 10), cv2.FONT_HERSHEY_PLAIN, 1, i["color"], 1)
+                cv2.putText(output_im, TAGNAME, (x1 + 1, y1 + 10), cv2.FONT_HERSHEY_PLAIN, 1, i["color"], 1)
                 cv2.putText(output_im, "%02d%%" % (i["score"] * 100), (x1 + 1, y1 + 18), cv2.FONT_HERSHEY_PLAIN, 0.6, i["color"])
 
                 raw_result["x1"] = x1

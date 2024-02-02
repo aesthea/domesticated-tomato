@@ -26,32 +26,35 @@ import pickle
 import base64
 from io import BytesIO
 
+##SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024b/HARR_VOTT.py"
+##spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
+##
+##spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
+##HARR_VOTT = importlib.util.module_from_spec(spec)
+##spec.loader.exec_module(HARR_VOTT)
+##
+##os.chdir(os.path.split(SPEC_LOADER)[0])
+
 warnings.filterwarnings("ignore")
 
-predict = False
-#Load this model on TKUI
-if os.path.isfile("tkpik.pik"):
-    with open("tkpik.pik", "rb") as fio:
-        data = pickle.load(fio)
-
-        model = HARR_VOTT.load_model(data["input_size"], data["color_channel"], data["tags"], data["region"], data["dropout"], data["fpn_mode"], data["backbone"], data["votts"])
-        model.BATCH_SIZE = data["batchsize"]
-        model.HUBER = data["huber"]
-        model.TRAIN_SIZE = data["trainsize"]
-        model.ANCHOR_LEVEL = data["anchor"]
-        model.NULL_SKIP = data["nullskip"]
-        model.OVERLAP_REQUIREMENT = data["overlap"]
-        model.SAVENAME = data["savefile"]
-        model.initialize()
-            
-        if os.path.isfile(data['savefile'] + ".pik"):
-            model.load()
-            predict = model.predict
-            #ai_function = model.anchor
-            #ai_function.CROP_SIZE = (int(data['input_size']), int(data['input_size']))
-            #ai_function.load_tags(data['savefile'] + ".pik")
-            #predict = ai_function.predict
-             
+##predict = False
+##if os.path.isfile("tkpik.pik"):
+##    with open("tkpik.pik", "rb") as fio:
+##        data = pickle.load(fio)
+##
+##        model = HARR_VOTT.load_model(data["input_size"], data["color_channel"], data["tags"], data["region"], data["dropout"], data["fpn_mode"], data["backbone"], data["votts"])
+##        model.BATCH_SIZE = data["batchsize"]
+##        model.HUBER = data["huber"]
+##        model.TRAIN_SIZE = data["trainsize"]
+##        model.ANCHOR_LEVEL = data["anchor"]
+##        model.NULL_SKIP = data["nullskip"]
+##        model.OVERLAP_REQUIREMENT = data["overlap"]
+##        model.SAVENAME = data["savefile"]
+##        model.initialize()
+##            
+##        if os.path.isfile(data['savefile'] + ".pik"):
+##            model.load()
+##            predict = model.predict   
 
 CONNECTED = set()
 async def handler(websocket, path, predict):
@@ -198,8 +201,7 @@ def run():
             data = pickle.load(fio)
         model = HARR_VOTT.load_ai_by_pik()
         model.load()
-        #predict = model.anchor.predict
-        model.predict
+        predict = model.predict
         start_server_00 = websockets.serve(functools.partial(handler, predict=predict), port = int(data['port']))
         asyncio.get_event_loop().run_until_complete(start_server_00)
         asyncio.get_event_loop().run_forever()
@@ -207,5 +209,17 @@ def run():
 
     
 if __name__ == "__main__":
-    pass
+    run_server = True
+    PORT = 8790
+    if run_server:
+        if os.path.isfile("tkpik.pik"):
+            with open("tkpik.pik", "rb") as fio:
+                data = pickle.load(fio)
+            model = HARR_VOTT.load_ai_by_pik()
+            model.load()
+            predict = model.predict
+            start_server_00 = websockets.serve(functools.partial(handler, predict=predict), port = PORT)
+            asyncio.get_event_loop().run_until_complete(start_server_00)
+            asyncio.get_event_loop().run_forever()
+            print("RUN DATA %s SERVER" % PORT)        
 
