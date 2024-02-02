@@ -1,0 +1,10 @@
+AverageBlur
+AdditiveGaussianNoise
+Affine.translate_percent
+Affine.scale
+Affine.rotate
+Affine.shear
+Fliplr
+Flipud
+
+bit switch = '1, 1, 1, 1, 1, 1, 1, 1' = 255
