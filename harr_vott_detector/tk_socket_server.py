@@ -5,59 +5,42 @@ import numpy as np
 import statistics
 import datetime
 import math
-
-
 import asyncio
 import websockets
-
 import importlib
 import importlib.util
-
 import json
 import urllib
-
 import functools
 import binascii
 import warnings
-
-import HARR_VOTT
 import pickle
-
 import base64
 from io import BytesIO
 
-##SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024b/HARR_VOTT.py"
-##spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
-##
-##spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
-##HARR_VOTT = importlib.util.module_from_spec(spec)
-##spec.loader.exec_module(HARR_VOTT)
-##
-##os.chdir(os.path.split(SPEC_LOADER)[0])
 
-warnings.filterwarnings("ignore")
 
-##predict = False
-##if os.path.isfile("tkpik.pik"):
-##    with open("tkpik.pik", "rb") as fio:
-##        data = pickle.load(fio)
-##
-##        model = HARR_VOTT.load_model(data["input_size"], data["color_channel"], data["tags"], data["region"], data["dropout"], data["fpn_mode"], data["backbone"], data["votts"])
-##        model.BATCH_SIZE = data["batchsize"]
-##        model.HUBER = data["huber"]
-##        model.TRAIN_SIZE = data["trainsize"]
-##        model.ANCHOR_LEVEL = data["anchor"]
-##        model.NULL_SKIP = data["nullskip"]
-##        model.OVERLAP_REQUIREMENT = data["overlap"]
-##        model.SAVENAME = data["savefile"]
-##        model.initialize()
-##            
-##        if os.path.isfile(data['savefile'] + ".pik"):
-##            model.load()
-##            predict = model.predict   
 
+#SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024b/HARR_VOTT.py"
+SPEC_LOADER = None
+
+if not SPEC_LOADER:
+    import HARR_VOTT
+    PIK = "tkpik.pik"
+    PORT = None
+else:
+    spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
+    spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
+    HARR_VOTT = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(HARR_VOTT)
+    PIK = os.path.join(os.path.split(SPEC_LOADER)[0], "tkpik.pik")
+    PORT = 8790
+
+    
+
+warnings.filterwarnings("ignore") 
 CONNECTED = set()
-async def handler(websocket, path, predict):
+async def handler(websocket, path, predict, port_no):
     print(path)
     try:
         async for rawdata in websocket:
@@ -122,6 +105,7 @@ async def handler(websocket, path, predict):
                                     #result["original"] = ",".join(['data:image/png;base64', test_b64])
                                 
             asyncio.ensure_future(send(websocket, json.dumps(result, ensure_ascii = True)))
+            print(port_no, "SEND COMPLETE", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                             
     except websockets.exceptions.ConnectionClosedError as e:
         client_ip, client_port = websocket.remote_address
@@ -194,31 +178,33 @@ async def clear_session():
         tf.keras.backend.clear_session()
         await asyncio.sleep(60)
  
-def run():
+def run(PORT = PORT):
     #Load this model on TKUI
-    if os.path.isfile("tkpik.pik"):
-        with open("tkpik.pik", "rb") as fio:
+    if os.path.isfile(PIK):
+        with open(PIK, "rb") as fio:
             data = pickle.load(fio)
-        model = HARR_VOTT.load_ai_by_pik()
-        model.load()
+        model = HARR_VOTT.load_ai_by_pik(PIK)
+        model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
         predict = model.predict
-        start_server_00 = websockets.serve(functools.partial(handler, predict=predict), port = int(data['port']))
+        if not PORT:
+            PORT = int(data['port'])
+        start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
         asyncio.get_event_loop().run_until_complete(start_server_00)
         asyncio.get_event_loop().run_forever()
-        print("RUN DATA %s SERVER" % data['port'])
-
+        print("RUN DATA %s SERVER" % PORT)
     
 if __name__ == "__main__":
     run_server = True
-    PORT = 8790
     if run_server:
-        if os.path.isfile("tkpik.pik"):
-            with open("tkpik.pik", "rb") as fio:
+        if os.path.isfile(PIK):
+            with open(PIK, "rb") as fio:
                 data = pickle.load(fio)
-            model = HARR_VOTT.load_ai_by_pik()
-            model.load()
+            model = HARR_VOTT.load_ai_by_pik(PIK)
+            model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
             predict = model.predict
-            start_server_00 = websockets.serve(functools.partial(handler, predict=predict), port = PORT)
+            if not PORT:
+                PORT = int(data['port'])
+            start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
             asyncio.get_event_loop().run_until_complete(start_server_00)
             asyncio.get_event_loop().run_forever()
             print("RUN DATA %s SERVER" % PORT)        

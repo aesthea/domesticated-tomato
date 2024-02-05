@@ -423,8 +423,10 @@ class load_model:
         else:
             try:
                 temp_gen = vott_loader(self.vott_available_paths)
-                with open(self.SAVENAME + ".pik", "wb") as fio:
-                    pickle.dump(temp_gen.TAGS_FORMAT, fio)
+                self.tag_format = temp_gen.TAGS_FORMAT
+                #print("SAVE PIK", __file__)
+##                with open(self.SAVENAME + ".pik", "wb") as fio:
+##                    pickle.dump(temp_gen.TAGS_FORMAT, fio)
             except FileNotFoundError as e:
                 print(e)
 
@@ -527,12 +529,14 @@ class load_model:
             output_im = output_im[0].numpy()
             
             for i in new_d:
-                
                 if i["tag"] in self.tag_format:
                     TAGNAME = self.tag_format[i["tag"]]["name"]
+                    #debug1 = 0
                 else:
+                    #debug1 = 1
                     TAGNAME = str(i["tag"])
-                #print(TAGNAME, i)
+
+                #print("PREDICTED TAG", i["tag"], TAGNAME, debug1)
                 raw_result = {}
                 x1 = int(i["box"][1] * output_im.shape[1])
                 y1 = int(i["box"][0] * output_im.shape[0])
@@ -547,7 +551,7 @@ class load_model:
                 raw_result["y2"] = y2
                 raw_result["w"] = output_im.shape[1]
                 raw_result["h"] = output_im.shape[0]
-                raw_result["tag"] = i["tag"]
+                raw_result["tag"] = TAGNAME
                 raw_result["color"] = i["color"]
                 raw_result["score"] = i["score"]
                 result_rawdata.append(raw_result)
