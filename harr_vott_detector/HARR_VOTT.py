@@ -22,15 +22,15 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow_addons as tfa
 import urllib
 
-#import efficient_det as det
-SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
-spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
+try:
+    import efficient_det as det
+except Exception as e:
+    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
+    spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
 
-spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
-det = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(det)
-
-
+    spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
+    det = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(det)
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
