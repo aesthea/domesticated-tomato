@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+ 
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocker Client</title>
+	<script src="filesize_down.js"></script>
+</head>
+ 
+<body>
+    <form action="" onsubmit="return false" entype="multipart/form-data">
+		<input type="file" name="file1" id="file1" required="required" onchange="fsdn('file1', 'image1')">
+	</form>
+	<button id="submit" onclick="submit()">SUBMIT</button>
+	<img id="image1" data-src="holder.js/320px320" class="img-fluid" alt="100%x256" style="height: 324px; width: 512px; display: block;" src="data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22320%22%20height%3D%22320%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20320%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_18929ad66ff%20text%20%7B%20fill%3Argba(255%2C255%2C255%2C.75)%3Bfont-weight%3Anormal%3Bfont-family%3AHelvetica%2C%20monospace%3Bfont-size%3A16pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_18929ad66ff%22%3E%3Crect%20width%3D%22320%22%20height%3D%22320%22%20fill%3D%22%23777%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%22119.078125%22%20y%3D%22167.2%22%3E320x320%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E" data-holder-rendered="true">
+	<div id="message"></div>
+</body>
+ 
+<script>
+
+const noimage = "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22320%22%20height%3D%22320%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20320%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3Cstyle%20type%3D%22text%2Fcss%22%3E%23holder_18929ad66ff%20text%20%7B%20fill%3Argba(255%2C255%2C255%2C.75)%3Bfont-weight%3Anormal%3Bfont-family%3AHelvetica%2C%20monospace%3Bfont-size%3A16pt%20%7D%20%3C%2Fstyle%3E%3C%2Fdefs%3E%3Cg%20id%3D%22holder_18929ad66ff%22%3E%3Crect%20width%3D%22320%22%20height%3D%22320%22%20fill%3D%22%23777%22%3E%3C%2Frect%3E%3Cg%3E%3Ctext%20x%3D%22119.078125%22%20y%3D%22167.2%22%3E320x320%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E";
+
+//CHANGE THE IP ADDRESS AND PORT TO TKBASIC LOCATION AND PORT SETTING.
+function socket_init(){
+	window.socket = new WebSocket('ws://192.168.160.76:8790/');
+	window.socket.onclose = async (event) => {
+		console.error(event); 
+		if(window.socket_retries > 0){
+			socket_init();
+			window.socket_retries -= 1;
+		}else{
+			alert("SERVER DEAD");
+		}
+	}
+	
+	window.socket.onopen = async (event) => {
+		var data = new Object;
+		data["__INIT__"] = "__INIT__";
+		window.socket.send(JSON.stringify(data));
+	}
+	
+	window.socket.onmessage = async (event) => {
+		window.socket_retries = 10;
+		result = JSON.parse(event.data);
+		console.log(result);
+		if(result.hasOwnProperty("args") && result.hasOwnProperty("result")){
+			document.getElementById(result.args.image_target_id).src = result.result;
+		}
+	}
+}
+
+
+function submit(){
+}
+
+function fsdn(id, output){
+	var fsd = filesize_down(id, output);
+	fsd.then(function(value){
+		console.log(value);
+		data = new Object;
+		args = new Object;
+		args["image_target_id"] = output;
+		args["input_file_id"] = id;
+		data["filename"] = document.getElementById(id).files[0].name;
+		data["size"] = document.getElementById(id).files[0].size;
+		data["tensorflow"] = true;
+		data["args"] = args;
+		data["bytes"] = document.getElementById(output).src;	
+		window.socket.send(JSON.stringify(data));
+	});
+}
+
+
+window.addEventListener("load",function(){
+	window.socket_retries = 10;
+	socket_init();
+})
+</script>
+ 
+</html>
