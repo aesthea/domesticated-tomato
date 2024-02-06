@@ -246,40 +246,44 @@ class anchor:
         b, h, w, c = image.shape
         crop_iter = iter(tf.image.crop_and_resize(image, self.boxes, self.box_indices, self.crop_size))
         for index, image_output in enumerate(crop_iter):
-            box_tf = self.boxes[index]
-            bounding_box = np.ndarray([1,0, 5])
-            bounding_box_concat = np.ndarray([1,0, 5])
-            x1 = int(box_tf[1] * w)
-            y1 = int(box_tf[0] * h)
-            x2 = int(box_tf[3] * w)
-            y2 = int(box_tf[2] * h)
-            for vott_bbc in bounding_box_with_class[0]:
-                x3 = int(vott_bbc[0])
-                y3 = int(vott_bbc[1])
-                x4 = int(vott_bbc[2])
-                y4 = int(vott_bbc[3])
-                boxA = [x1, y1, x2, y2]
-                boxB = [x3, y3, x4, y4]
-                tag_class = int(vott_bbc[4])
-                intersect = bb_intersection(boxA, boxB)
-                if intersect >= overlap_requirement:
-                    bx1 = max(x1, x3) - x1
-                    by1 = max(y1, y3) - y1
-                    bx2 = min(x2, x4) - x1
-                    by2 = min(y2, y4) - y1
-                    ow = image_output.shape[1]
-                    oh = image_output.shape[0]
-                    rx1 = math.floor(bx1 *  (ow / (x2 - x1)))
-                    rx2 = math.floor(bx2 *  (ow / (x2 - x1)))
-                    ry1 = math.floor(by1 *  (oh / (y2 - y1)))
-                    ry2 = math.floor(by2 *  (oh / (y2 - y1)))
-                    bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
-                else:
-                    pass
-            bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
-            image_output = tf.expand_dims(image_output, 0)
-            image_output = image_output.numpy()
-            yield image_output, bounding_box
+            try:
+                box_tf = self.boxes[index]
+                bounding_box = np.ndarray([1,0, 5])
+                bounding_box_concat = np.ndarray([1,0, 5])
+                x1 = int(box_tf[1] * w)
+                y1 = int(box_tf[0] * h)
+                x2 = int(box_tf[3] * w)
+                y2 = int(box_tf[2] * h)
+                for vott_bbc in bounding_box_with_class[0]:
+                    x3 = int(vott_bbc[0])
+                    y3 = int(vott_bbc[1])
+                    x4 = int(vott_bbc[2])
+                    y4 = int(vott_bbc[3])
+                    boxA = [x1, y1, x2, y2]
+                    boxB = [x3, y3, x4, y4]
+                    tag_class = int(vott_bbc[4])
+                    intersect = bb_intersection(boxA, boxB)
+                    if intersect >= overlap_requirement:
+                        bx1 = max(x1, x3) - x1
+                        by1 = max(y1, y3) - y1
+                        bx2 = min(x2, x4) - x1
+                        by2 = min(y2, y4) - y1
+                        ow = image_output.shape[1]
+                        oh = image_output.shape[0]
+                        rx1 = math.floor(bx1 *  (ow / (x2 - x1)))
+                        rx2 = math.floor(bx2 *  (ow / (x2 - x1)))
+                        ry1 = math.floor(by1 *  (oh / (y2 - y1)))
+                        ry2 = math.floor(by2 *  (oh / (y2 - y1)))
+                        bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
+                    else:
+                        pass
+                bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
+                image_output = tf.expand_dims(image_output, 0)
+                image_output = image_output.numpy()
+                yield image_output, bounding_box
+            except Exception as e:
+                print("E285", e)
+                continue
     
 def augment(im, bbwc, seq = None):
     im = im[0]
