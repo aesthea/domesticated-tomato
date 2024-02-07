@@ -192,98 +192,125 @@ class vott_loader:
                         
 
 class anchor:
-    def __init__(self, anchor_level = 2, crop_size = (128,128)):
-        self.boxes = self._boxes(anchor_level)
-        self.box_indices = tf.zeros(shape=(self.boxes.shape[0],), dtype = "int32")
+    def __init__(self, anchor_level = 2, crop_size = (128, 128)):
+        self.anchor_level = anchor_level
+        self.prepare_box(anchor_level)
         self.crop_size = crop_size
 
-    def _boxes(self, level = 2):
-        boxes = tf.constant([[0.01, 0.01, 0.99, 0.99]])
-        if level > 0:
-            b = []
-            for i in range(level):
-                b.append(tf.constant(self.generate_box(2 + i)))
-            b = tf.concat(b, 0)
-            boxes = tf.concat([boxes, b], 0)
-        return boxes
-
-    def generate_box(self, size, border = 0.01):
-        a = [n/size for n in range(size + 1)]
+    def prepare_box(self, level = 2, ratio = 1.0):
+        if ratio > 1:
+            x = (1 / ratio) / 2
+            y = 0.5
+        else:
+            x = 0.5
+            y = (1 * ratio) / 2
+        boxes = tf.constant([[0.5 - x, 0.5 - y, 0.5 + x , 0.5 + y]])
+        b = []
+        for i in range(level + 1):
+            b.append(tf.constant(self.generate_box(i, ratio)))
+        b = tf.concat(b, 0)
+        self.boxes = tf.concat([boxes, b], 0)
+        self.box_indices = tf.zeros(shape=(self.boxes.shape[0],), dtype = "int32")
+        
+    def generate_box(self, anc_lvl, ratio, border = 0.01):
         box = []
-        for b1 in range(size):
-            for b2 in range(size):
-                x1 = a[b1] + border
-                y1 = a[b2] + border
-                x2 = a[b1 + 1] - border
-                y2 = a[b2 + 1] - border                
-                box.append([x1, y1, x2, y2])
-        for b1 in range(size - 1):
-            for b2 in range(size):
-                x1 = (a[b1] + a[b1 + 1]) / 2 + border
-                y1 = a[b2] + border
-                x2 = (a[b1 + 1] + a[b1 + 2]) / 2 - border
-                y2 = a[b2 + 1] - border               
-                box.append([x1, y1, x2, y2])
-
-        for b1 in range(size):
-            for b2 in range(size - 1):               
-                x1 = a[b1] + border
-                y1 = (a[b2] + a[b2 + 1]) / 2 + border
-                x2 = a[b1 + 1] - border
-                y2 = (a[b2 + 1] + a[b2 + 2]) / 2 - border            
-                box.append([x1, y1, x2, y2])
-                
-        for b1 in range(size - 1):
-            for b2 in range(size - 1):
-                x1 = (a[b1] + a[b1 + 1]) / 2 + border
-                y1 = (a[b2] + a[b2 + 1]) / 2 + border
-                x2 = (a[b1 + 1] + a[b1 + 2]) / 2 - border
-                y2 = (a[b2 + 1] + a[b2 + 2]) / 2 - border
-                box.append([x1, y1, x2, y2])        
+        box_expanded_size = 1.5
+        if ratio >= 1.0:
+            hs = anc_lvl + 1
+            ws = math.ceil(ratio + anc_lvl)
+            wr = 1 / ratio
+            hr = 1
+        else:
+            if ratio != 0:
+                anr = anc_lvl + 1 / ratio
+            else:
+                anr = 1
+            hs = math.ceil(anr)
+            ws = anc_lvl + 1
+            wr = 1
+            hr = 1 * ratio
+        boxshape = np.zeros([hs, ws])
+        if anc_lvl > 0:
+            wr = (box_expanded_size * wr) / (anc_lvl + 1)
+            hr = (box_expanded_size * hr) / (anc_lvl + 1)
+        else:
+            wr = wr / (anc_lvl + 1)
+            hr = hr / (anc_lvl + 1)
+        for h in range(hs):
+            for w in range(ws):
+                mw = wr / 2
+                mh = hr / 2
+                pw = ((w / ws) + ((w + 1) / ws)) / 2
+                ph = ((h / hs) + ((h + 1) / hs)) / 2
+                x1 = pw - mw
+                x2 = pw + mw
+                if x1 < 0:
+                    x2 = x2 - x1
+                    x1 = 0.0
+                if x2 > 1:
+                    x1 = x1 - (x2 - 1)
+                    x2 = 1.0
+                y1 = ph - mh
+                y2 = ph + mh
+                if y1 < 0:
+                    y2 = y2 - y1
+                    y1 = 0.0
+                if y2 > 1:
+                    y1 = y1 - (y2 - 1)
+                    y2 = 1.0
+                box.append([x1, y1, x2, y2]) 
         return box
 
     def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9):
         b, h, w, c = image.shape
-        crop_iter = iter(tf.image.crop_and_resize(image, self.boxes, self.box_indices, self.crop_size))
-        for index, image_output in enumerate(crop_iter):
-            try:
-                box_tf = self.boxes[index]
-                bounding_box = np.ndarray([1,0, 5])
-                bounding_box_concat = np.ndarray([1,0, 5])
-                x1 = int(box_tf[1] * w)
-                y1 = int(box_tf[0] * h)
-                x2 = int(box_tf[3] * w)
-                y2 = int(box_tf[2] * h)
-                for vott_bbc in bounding_box_with_class[0]:
-                    x3 = int(vott_bbc[0])
-                    y3 = int(vott_bbc[1])
-                    x4 = int(vott_bbc[2])
-                    y4 = int(vott_bbc[3])
-                    boxA = [x1, y1, x2, y2]
-                    boxB = [x3, y3, x4, y4]
-                    tag_class = int(vott_bbc[4])
-                    intersect = bb_intersection(boxA, boxB)
-                    if intersect >= overlap_requirement:
-                        bx1 = max(x1, x3) - x1
-                        by1 = max(y1, y3) - y1
-                        bx2 = min(x2, x4) - x1
-                        by2 = min(y2, y4) - y1
-                        ow = image_output.shape[1]
-                        oh = image_output.shape[0]
-                        rx1 = math.floor(bx1 *  (ow / (x2 - x1)))
-                        rx2 = math.floor(bx2 *  (ow / (x2 - x1)))
-                        ry1 = math.floor(by1 *  (oh / (y2 - y1)))
-                        ry2 = math.floor(by2 *  (oh / (y2 - y1)))
-                        bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
-                    else:
-                        pass
-                bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
-                image_output = tf.expand_dims(image_output, 0)
-                image_output = image_output.numpy()
-                yield image_output, bounding_box
-            except Exception as e:
-                print("E285", e)
-                continue
+        ratio = h / w
+        self.prepare_box(self.anchor_level, ratio)
+        crop_iter = iter(zip(self.boxes, self.box_indices))
+        for index, box_value in enumerate(crop_iter):
+            box, box_indice = box_value
+            box = np.expand_dims(box, 0)
+            box_indice = np.expand_dims(box_indice, 0)
+            image_outputs = tf.image.crop_and_resize(image, box, box_indice, self.crop_size)
+            for image_output in image_outputs:
+                try:
+                    box_tf = self.boxes[index]
+                    bounding_box = np.ndarray([1,0, 5])
+                    bounding_box_concat = np.ndarray([1,0, 5])
+                    x1 = int(box_tf[1] * w)
+                    y1 = int(box_tf[0] * h)
+                    x2 = int(box_tf[3] * w)
+                    y2 = int(box_tf[2] * h)
+                    #print(box_tf[1], x1, box_tf[0], y1, box_tf[3], x2, box_tf[2], y2)
+                    for vott_bbc in bounding_box_with_class[0]:
+                        x3 = int(vott_bbc[0])
+                        y3 = int(vott_bbc[1])
+                        x4 = int(vott_bbc[2])
+                        y4 = int(vott_bbc[3])
+                        boxA = [x1, y1, x2, y2]
+                        boxB = [x3, y3, x4, y4]
+                        tag_class = int(vott_bbc[4])
+                        intersect = bb_intersection(boxA, boxB)
+                        if intersect >= overlap_requirement:
+                            bx1 = max(x1, x3) - x1
+                            by1 = max(y1, y3) - y1
+                            bx2 = min(x2, x4) - x1
+                            by2 = min(y2, y4) - y1
+                            ow = image_output.shape[1]
+                            oh = image_output.shape[0]
+                            rx1 = math.floor(bx1 *  (ow / (x2 - x1)))
+                            rx2 = math.floor(bx2 *  (ow / (x2 - x1)))
+                            ry1 = math.floor(by1 *  (oh / (y2 - y1)))
+                            ry2 = math.floor(by2 *  (oh / (y2 - y1)))
+                            bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
+                        else:
+                            pass
+                    bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
+                    image_output = tf.expand_dims(image_output, 0)
+                    image_output = image_output.numpy()
+                    yield image_output, bounding_box
+                except Exception as e:
+                    print("E285", e)
+                    continue
     
 def augment(im, bbwc, seq = None):
     im = im[0]
@@ -620,23 +647,29 @@ class load_model:
         classification_loss = history.history['classification_loss']
         regression_loss = history.history['regression_loss']
 
-        val_loss = history.history['val_loss']
-        val_classification_loss = history.history['val_classification_loss']
-        val_regression_loss = history.history['val_regression_loss']
+        if 'val_loss' in history.history:
+            val_loss = history.history['val_loss']
+        if 'val_classification_loss' in history.history:
+            val_classification_loss = history.history['val_classification_loss']
+        if 'val_regression_loss' in history.history:
+            val_regression_loss = history.history['val_regression_loss']
         
         epochs_range = range(EPOCHS)
         plt.figure(figsize=(8, 8))
         plt.subplot(1, 2, 1)
         plt.plot(epochs_range, loss, label='loss')
-        plt.plot(epochs_range, val_loss, label='val_loss')
+        if 'val_loss' in history.history:
+            plt.plot(epochs_range, val_loss, label='val_loss')
         plt.legend(loc='lower right')
         plt.title('LOSS')
 
         plt.subplot(1, 2, 2)
         plt.plot(epochs_range, classification_loss, label='classification_loss')
         plt.plot(epochs_range, regression_loss, label='regression_loss')
-        plt.plot(epochs_range, val_classification_loss, label='val_classification_loss')
-        plt.plot(epochs_range, val_regression_loss, label='val_regression_loss')
+        if 'val_classification_loss' in history.history:
+            plt.plot(epochs_range, val_classification_loss, label='val_classification_loss')
+        if 'val_regression_loss' in history.history:
+            plt.plot(epochs_range, val_regression_loss, label='val_regression_loss')
         plt.legend(loc='upper right')
         plt.title('Classification and regression')
 
@@ -763,6 +796,6 @@ def test_predict():
 
 def test():
     a = anchor()
-    g = vott_loader(['//192.168.177.20/public sharing folder/TENSORFLOW/HARR_VOTT_EXE/vott-json-export/ME_LOADTRACK_FIX_20230801-export.json',])
+    g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/output/vott-json-export/TAPING-PROBE-PIN-export.json',])
     b = g.batch()
     sanity_check(b)
