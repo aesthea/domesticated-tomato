@@ -271,46 +271,45 @@ class anchor:
             box = np.expand_dims(box, 0)
             box_indice = np.expand_dims(box_indice, 0)
             image_outputs = tf.image.crop_and_resize(image, box, box_indice, self.crop_size)
+            if image_outputs.ndim != 4:
+                continue
             for image_output in image_outputs:
-                try:
-                    box_tf = self.boxes[index]
-                    bounding_box = np.ndarray([1,0, 5])
-                    bounding_box_concat = np.ndarray([1,0, 5])
-                    x1 = int(box_tf[1] * w)
-                    y1 = int(box_tf[0] * h)
-                    x2 = int(box_tf[3] * w)
-                    y2 = int(box_tf[2] * h)
-                    #print(box_tf[1], x1, box_tf[0], y1, box_tf[3], x2, box_tf[2], y2)
-                    for vott_bbc in bounding_box_with_class[0]:
-                        x3 = int(vott_bbc[0])
-                        y3 = int(vott_bbc[1])
-                        x4 = int(vott_bbc[2])
-                        y4 = int(vott_bbc[3])
-                        boxA = [x1, y1, x2, y2]
-                        boxB = [x3, y3, x4, y4]
-                        tag_class = int(vott_bbc[4])
-                        intersect = bb_intersection(boxA, boxB)
-                        if intersect >= overlap_requirement:
-                            bx1 = max(x1, x3) - x1
-                            by1 = max(y1, y3) - y1
-                            bx2 = min(x2, x4) - x1
-                            by2 = min(y2, y4) - y1
-                            ow = image_output.shape[1]
-                            oh = image_output.shape[0]
-                            rx1 = math.floor(bx1 *  (ow / (x2 - x1)))
-                            rx2 = math.floor(bx2 *  (ow / (x2 - x1)))
-                            ry1 = math.floor(by1 *  (oh / (y2 - y1)))
-                            ry2 = math.floor(by2 *  (oh / (y2 - y1)))
+                box_tf = self.boxes[index]
+                bounding_box = np.ndarray([1,0, 5])
+                bounding_box_concat = np.ndarray([1,0, 5])
+                x1 = int(box_tf[1] * w)
+                y1 = int(box_tf[0] * h)
+                x2 = int(box_tf[3] * w)
+                y2 = int(box_tf[2] * h)
+                for vott_bbc in bounding_box_with_class[0]:
+                    x3 = int(vott_bbc[0])
+                    y3 = int(vott_bbc[1])
+                    x4 = int(vott_bbc[2])
+                    y4 = int(vott_bbc[3])
+                    boxA = [x1, y1, x2, y2]
+                    boxB = [x3, y3, x4, y4]
+                    tag_class = int(vott_bbc[4])
+                    intersect = bb_intersection(boxA, boxB)
+                    if intersect >= overlap_requirement:
+                        bx1 = max(x1, x3) - x1
+                        by1 = max(y1, y3) - y1
+                        bx2 = min(x2, x4) - x1
+                        by2 = min(y2, y4) - y1
+                        ow = image_output.shape[1]
+                        oh = image_output.shape[0]
+                        if x2 - x1 != 0 and y2 - y1 != 0:
+                            owx21 = (ow / (x2 - x1))
+                            ohy21 = (oh / (y2 - y1))
+                            rx1 = math.floor(bx1 *  owx21)
+                            rx2 = math.floor(bx2 *  owx21)
+                            ry1 = math.floor(by1 *  ohy21)
+                            ry2 = math.floor(by2 *  ohy21)
                             bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
-                        else:
-                            pass
-                    bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
-                    image_output = tf.expand_dims(image_output, 0)
-                    image_output = image_output.numpy()
-                    yield image_output, bounding_box
-                except Exception as e:
-                    print("E285", e)
-                    continue
+                bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
+                image_output = tf.expand_dims(image_output, 0)
+                image_output = image_output.numpy()
+                yield image_output, bounding_box
+  
     
 def augment(im, bbwc, seq = None):
     im = im[0]
@@ -340,31 +339,33 @@ def augment(im, bbwc, seq = None):
 
 
 def bb_intersection_over_union(boxA, boxB):
-	# determine the (x, y)-coordinates of the intersection rectangle
-	xA = max(boxA[0], boxB[0])
-	yA = max(boxA[1], boxB[1])
-	xB = min(boxA[2], boxB[2])
-	yB = min(boxA[3], boxB[3])
-	# compute the area of intersection rectangle
-	interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-	# compute the area of both the prediction and ground-truth
-	# rectangles
-	boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-	boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-	iou = interArea / float(boxAArea + boxBArea - interArea)
-	# return the intersection over union value
-	return iou
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    # compute the area of intersection rectangle
+    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+    # return the intersection over union value
+    return iou
 
 def bb_intersection(boxA, boxB):
-	xA = max(boxA[0], boxB[0])
-	yA = max(boxA[1], boxB[1])
-	xB = min(boxA[2], boxB[2])
-	yB = min(boxA[3], boxB[3])
-	interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-	boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-	boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-	i = interArea / min(boxAArea,boxBArea)
-	return i
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+    if min(boxAArea, boxBArea) != 0:
+        i = interArea / min(boxAArea, boxBArea)
+        return i
+    return 0.0
 
 def sanity_check(gen):
     x,(y,z) = gen.__next__()
