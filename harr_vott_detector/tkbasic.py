@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 1.20240202")
+        self.root.title("HARR VOTT 1.20240207")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -74,6 +74,7 @@ class widget:
         self.predict = None
         self.MP_THREAD = False
         self.initialdir = "/"
+        self.RELOAD_AI_FLAG = False
 
     def worker(self, func, args):
         if not self.THREAD:
@@ -756,37 +757,68 @@ class widget:
 
     def update(self, event = None):
         reload_AI = False
-        votts = [n for n in self.objects["votts"]["input"].get("1.0",END).split("\n") if os.path.isfile(n)]
         
+        votts = [n for n in self.objects["votts"]["input"].get("1.0",END).split("\n") if os.path.isfile(n)]
+        if "votts" in self.data:
+            if self.data["votts"] != votts:
+                reload_AI = True
+        if self.AI_MODEL:
+            if self.AI_MODEL.VOTT_PATHS != votts:
+                reload_AI = True
         self.data["votts"] = votts
+        
         self.objects["votts"]["input"].delete("1.0", END)
         self.objects["votts"]["input"].insert("1.0", "\n".join(votts))
 
         if self.data["backbone"] != self.value_type(self.backbone, str):
+            reload_AI = True                
+        elif self.data["fpn_mode"] != self.value_type(self.fpn_mode, int):
             reload_AI = True
-        if self.data["fpn_mode"] != self.value_type(self.fpn_mode, int):
+        elif self.data["input_size"] != self.value_type(self.input_size, int):
             reload_AI = True
-        if self.data["input_size"] != self.value_type(self.input_size, int):
+        elif self.data["color_channel"] != self.value_type(self.color_channel, int):
             reload_AI = True
-        if self.data["color_channel"] != self.value_type(self.color_channel, int):
+        elif self.data["region"] != self.value_type(self.inputs["region"], int):
             reload_AI = True
-        if self.data["region"] != self.value_type(self.inputs["region"], int):
+        elif self.data["tags"] != self.value_type(self.inputs["tags"], int):
             reload_AI = True
-        if self.data["tags"] != self.value_type(self.inputs["tags"], int):
+        elif self.data["dropout"] != self.value_type(self.inputs["dropout"], float):
             reload_AI = True
-        if self.data["dropout"] != self.value_type(self.inputs["dropout"], float):
+        elif self.data["anchor"] != self.value_type(self.inputs["anchor"], int):
             reload_AI = True
-        if self.data["anchor"] != self.value_type(self.inputs["anchor"], int):
+        elif self.data["batchsize"] != self.value_type(self.inputs["batchsize"], int):
             reload_AI = True
-        if self.data["batchsize"] != self.value_type(self.inputs["batchsize"], int):
+        elif self.data["augment"] != self.value_type(self.inputs["augment"], int):
             reload_AI = True
-        if self.data["augment"] != self.value_type(self.inputs["augment"], int):
+        elif self.data["non_max_suppression_iou"] != self.value_type(self.inputs["non_max_suppression_iou"], float):
             reload_AI = True
-        if self.data["non_max_suppression_iou"] != self.value_type(self.inputs["non_max_suppression_iou"], float):
+        elif self.data["lstm"] != self.value_type(self.lstm, bool):
             reload_AI = True
-        if self.data["lstm"] != self.value_type(self.lstm, bool):
-            reload_AI = True            
-        
+
+        if self.AI_MODEL:
+            if self.AI_MODEL.BACKBONE != self.value_type(self.backbone, str):
+                reload_AI = True
+            elif self.AI_MODEL.FPN_MODE != self.value_type(self.fpn_mode, int):
+                reload_AI = True
+            elif self.AI_MODEL.IMAGE_SIZE != self.value_type(self.input_size, int):
+                reload_AI = True
+            elif self.AI_MODEL.COLOR_CHANNEL != self.value_type(self.color_channel, int):
+                reload_AI = True
+            elif self.AI_MODEL.REGIONS != self.value_type(self.inputs["region"], int):
+                reload_AI = True
+            elif self.AI_MODEL.CLASSIFICATION_TAGS != self.value_type(self.inputs["tags"], int):
+                reload_AI = True
+            elif self.AI_MODEL.DROPOUT != self.value_type(self.inputs["dropout"], float):
+                reload_AI = True
+            elif self.AI_MODEL.ANCHOR_LEVEL != self.value_type(self.inputs["anchor"], int):
+                reload_AI = True
+            elif self.AI_MODEL.BATCH_SIZE != self.value_type(self.inputs["batchsize"], int):
+                reload_AI = True
+            elif self.AI_MODEL.AUGMENT != self.value_type(self.inputs["augment"], int):
+                reload_AI = True
+            elif self.AI_MODEL.NON_MAX_SUPPRESSION_IOU != self.value_type(self.inputs["non_max_suppression_iou"], float):
+                reload_AI = True
+                
         self.data["backbone"] = self.value_type(self.backbone, str)
         self.data["fpn_mode"] = self.value_type(self.fpn_mode, int)
         self.data["input_size"] = self.value_type(self.input_size, int)
@@ -818,8 +850,9 @@ class widget:
                 with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
                     pickle.dump(self.data, fio)
 
-        if reload_AI:
-            self.load_AI()
+        #if reload_AI:
+        #    self.load_AI()
+        self.RELOAD_AI_FLAG = reload_AI
 
     def train(self):
         self.update()
@@ -845,18 +878,26 @@ class widget:
             if not float(self.data[k]) > 0:
                 print("no value", k, self.data[k])
                 return False
-        if not self.AI_MODEL:
+        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
             self.load_AI()
-        self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"])
+            self.RELOAD_AI_FLAG = False
+            return False
+        v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"])
 
 
     def save(self):
+        if not self.AI_MODEL:
+            print("CANNOT SAVE, NO AI MODEL")
+            return False
         print("widget.save")
         self.AI_MODEL.save(self.value_type(self.inputs["savefile"], str))
         
 
     def load(self):
         print("widget.load")
+        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+            self.load_AI()
+            self.RELOAD_AI_FLAG = False
         self.AI_MODEL.load(self.value_type(self.inputs["savefile"], str))
         
 
@@ -868,10 +909,16 @@ class widget:
         
     def generator_check(self):
         self.update()
+        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+            self.load_AI()
+            self.RELOAD_AI_FLAG = False
         self.AI_MODEL.generator_check()
 
     def predict_image(self):
         self.update()
+        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+            self.load_AI()
+            self.RELOAD_AI_FLAG = False
         filename = filedialog.askopenfilename(initialdir = self.initialdir, title = "Select a File", \
                                               filetypes = (("image files", ("*.bmp*", "*.jpg*", "*.png*")), \
                                                            ("all files", "*.*")))

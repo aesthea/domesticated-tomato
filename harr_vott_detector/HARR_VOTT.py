@@ -46,7 +46,7 @@ class vott_loader:
         self.TAG_KEY = {i:n for i, n in enumerate(self.TAGS_FORMAT.keys())}
         #https://stackoverflow.com/questions/60926460/can-dictionary-data-split-into-test-and-training-set-randomly
         s = pd.Series(self.ASSETS)
-        if train_split < 1.0:
+        if train_split < 1.0 and len(s) > 0:
             self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = 0.95 - train_split)]
         else:
             self.training_data = s.to_dict()
@@ -138,7 +138,7 @@ class vott_loader:
         batch_label = np.ndarray([0, self.regions, 1], dtype = np.int16)
         batch_bbox = np.ndarray([0, self.regions, 4], dtype = np.float16)
         
-        while True:                
+        while len(asset) > 0:                
             for key in asset:
                 tf_img, bounding_box_with_class = self.prepare_image_region(key)
                 if type(tf_img) == np.ndarray and type(bounding_box_with_class) == np.ndarray:
@@ -150,6 +150,9 @@ class vott_loader:
                         aug_im, aug_bb = augment(anc_im, anc_bbc)
                         w = aug_bb.shape[1]
                         h = aug_bb.shape[0]
+
+                        if h == 0 or w == 0:
+                            continue
 
                         new_array = []
                         for bb in aug_bb:
@@ -183,12 +186,19 @@ class vott_loader:
                             batch_image = np.ndarray([0, anc.crop_size[1], anc.crop_size[0], self.color_channel], dtype = np.int16)
                             batch_label = np.ndarray([0, self.regions, 1], dtype = np.int16)
                             batch_bbox = np.ndarray([0, self.regions, 4], dtype = np.float16)
-                        batch_image = np.append(batch_image, np.array([aug_im], dtype = np.int16), axis = 0)
-                        batch_label = np.append(batch_label, region_label[:, :self.regions, :], axis = 0)
-                        batch_bbox = np.append(batch_bbox, region_bb[:, :self.regions, :] / [h, w, h, w], axis = 0)
 
-                        if batch_image.shape[0] >= batch_size:
-                            yield batch_image.astype(np.int16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
+                        np_aug_im = np.array([aug_im], dtype = np.int16)
+                        np_region_label = region_label[:, :self.regions, :]
+                        np_region_bb = region_bb[:, :self.regions, :] / [h, w, h, w]
+                        
+                        if np_aug_im.ndim == 4 and  np_region_label.ndim == 3 and np_region_bb.ndim == 3:
+                            if np_aug_im.shape[1:] == (anc.crop_size[1], anc.crop_size[0], self.color_channel) and np_region_label.shape[1:] == (self.regions, 1) and np_region_bb.shape[1:] == (self.regions, 4):
+                                batch_image = np.append(batch_image, np_aug_im, axis = 0)
+                                batch_label = np.append(batch_label, np_region_label, axis = 0)
+                                batch_bbox = np.append(batch_bbox, np_region_bb, axis = 0)
+
+                                if batch_image.shape[0] >= batch_size:
+                                    yield batch_image.astype(np.int16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
                         
 
 class anchor:
@@ -308,7 +318,9 @@ class anchor:
                 bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
                 image_output = tf.expand_dims(image_output, 0)
                 image_output = image_output.numpy()
-                yield image_output, bounding_box
+                if image_output.ndim == 4 and bounding_box.ndim == 3:
+                    if image_output.shape[1:] == (self.crop_size[0], self.crop_size[1], c) and bounding_box.shape[2] == 5:
+                        yield image_output, bounding_box
   
     
 def augment(im, bbwc, seq = None):
@@ -464,7 +476,7 @@ class load_model:
 
         self.action = None
 
-    def predict(self, fp, show = True, rawdata = False):
+    def predict(self, fp, show = True, rawdata = False, debug = False):
         self.action = "predict"
         tags = [k for k in self.tag_format]
         raw_image = tf.io.read_file(fp)
@@ -489,9 +501,49 @@ class load_model:
         anchor_gen = self.anchor.make(image)
         for im, bb in anchor_gen:
             image_for_predict = np.append(image_for_predict, im, axis = 0)
-        
-        inference = self.model.predict(image_for_predict, verbose = 0)
 
+        if debug:
+            print("DEBUG 494", image_for_predict.shape)
+            sqr_grid = math.ceil(math.sqrt(image_for_predict.shape[0]))
+            fig,ax = plt.subplots(sqr_grid , sqr_grid)
+            for i, im in enumerate(image_for_predict):
+                row = i // sqr_grid
+                col = i % sqr_grid
+                ax[row, col].set_title(str(i), fontdict= {'fontsize': 6})
+                im = tf.keras.preprocessing.image.array_to_img(im)
+                ax[row, col].imshow(im)
+                ax[row, col].axis('off')
+            plt.show()
+            plt.clf()
+            plt.close()
+
+        with tf.device("cpu:0"):
+            inference = self.model.predict(image_for_predict, verbose = 0)
+    
+        if debug:
+            debug_grid = tf.image.draw_bounding_boxes(image_for_predict, inference[1], [[255,255,255]])
+            classifier = tf.argmax(inference[0], axis = -1).numpy()
+            sqr_grid = math.ceil(math.sqrt(debug_grid.shape[0]))
+            fig,ax = plt.subplots(sqr_grid , sqr_grid)
+            for i, im in enumerate(debug_grid):
+                im = im.numpy()
+                row = i // sqr_grid
+                col = i % sqr_grid
+                ax[row, col].set_title(str(i), fontdict= {'fontsize': 6})
+
+                for j in range(classifier[i].shape[0]):
+                    TAG_ID = classifier[i][j]
+                    x1 = inference[1][i][j][1] * self.anchor.crop_size[1]
+                    y1 = inference[1][i][j][0] * self.anchor.crop_size[0]
+                    cv2.putText(im, str(TAG_ID), (int(x1), int(y1)), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255) , 1)
+                
+                im = tf.keras.preprocessing.image.array_to_img(im)
+                ax[row, col].imshow(im)
+                ax[row, col].axis('off')
+            plt.show()
+            plt.clf()
+            plt.close()
+        
         classifier = tf.argmax(inference[0], axis = -1).numpy()
         arr = np.expand_dims(classifier,-1)
         classifier = classifier.tolist()
@@ -557,18 +609,13 @@ class load_model:
             bounding_boxes = np.array([[n["box"] for n in new_d]])
             combined_colors = np.array([n["color"] for n in new_d])
             output_im = tf.image.draw_bounding_boxes(image.numpy(), bounding_boxes, combined_colors)
-
             output_im = output_im[0].numpy()
             
             for i in new_d:
                 if i["tag"] in self.tag_format:
                     TAGNAME = self.tag_format[i["tag"]]["name"]
-                    #debug1 = 0
                 else:
-                    #debug1 = 1
                     TAGNAME = str(i["tag"])
-
-                #print("PREDICTED TAG", i["tag"], TAGNAME, debug1)
                 raw_result = {}
                 x1 = int(i["box"][1] * output_im.shape[1])
                 y1 = int(i["box"][0] * output_im.shape[0])
@@ -681,6 +728,7 @@ class load_model:
 
         with open(self.SAVENAME + ".pik", "wb") as fio:
             pickle.dump(gen.TAGS_FORMAT, fio)
+        return True
 
     def save(self, f = None):
         self.action = "save"
@@ -745,27 +793,25 @@ class load_model:
         plt.close()
 
     def folder_check(self, folder):
-        images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") , os.listdir(folder))
-        cnt = 0
-        fig,ax = plt.subplots(3 , 5)
-        for row in ax:
-            for col in row:
-                col.axis("off")
-        while cnt < 15:
-            try:
-                fn = images.__next__()
-            except Exception as e:
-                print(e)
-                cnt = 100
-                break
-            row = cnt // 5
-            col = cnt % 5
+        #images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") , os.listdir(folder))
+        images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") and os.path.isfile(os.path.join(folder, f)), os.listdir(folder))
+        images = [n for n in images]
+        max_len = 36
+        len_images = len(images)
+        if len_images < 1:
+            return False
+        if len_images > max_len:
+            len_images = max_len
+        sqr_grid = math.ceil(math.sqrt(len_images))
+        fig,ax = plt.subplots(sqr_grid , sqr_grid)
+        for i, fn in enumerate(images[: len_images]):
+            row = i // sqr_grid
+            col = i % sqr_grid
             fp = os.path.join(folder, fn)
             im = self.predict(fp, False, False)
             ax[row, col].set_title(fn, fontdict= {'fontsize': 6})
             ax[row, col].imshow(im)
             ax[row, col].axis('off')
-            cnt += 1
         plt.show()
         plt.clf()
         plt.close()
@@ -797,6 +843,12 @@ def test_predict():
 
 def test():
     a = anchor()
-    g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/output/vott-json-export/TAPING-PROBE-PIN-export.json',])
+    g = vott_loader(['C:/PROJECT/HARR_VOTT/vott-json-export/OCR-export.json',])
     b = g.batch()
     sanity_check(b)
+
+def debug():
+    fp = "C:/Users/CSIPIG0031/Downloads/T030_image_left_view_0.jpg"
+    model = load_ai_by_pik()
+    model.load()
+    model.predict(fp, debug = True)
