@@ -23,9 +23,9 @@ import tensorflow_addons as tfa
 import urllib
 
 try:
-    import efficient_det as det
+    import MODEL as det
 except Exception as e:
-    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
+    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "MODEL.py")
     spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
 
     spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
@@ -425,7 +425,7 @@ def load_ai_by_pik(f = "tkpik.pik"):
             return model
         
 class load_model:
-    def __init__(self, IMAGE_SIZE, COLOR_CHANNEL, CLASSIFICATION_TAGS, REGIONS, DROPOUT, FPN_MODE, BACKBONE, VOTT_PATHS, AUGMENT = 255, LSTM = False):
+    def __init__(self, IMAGE_SIZE, COLOR_CHANNEL, CLASSIFICATION_TAGS, REGIONS, DROPOUT, FPN_MODE, BACKBONE, VOTT_PATHS, AUGMENT = 255):
         self.IMAGE_SIZE = IMAGE_SIZE
         self.COLOR_CHANNEL = COLOR_CHANNEL
         self.CLASSIFICATION_TAGS = CLASSIFICATION_TAGS
@@ -444,11 +444,10 @@ class load_model:
         self.AUGMENT = AUGMENT
         self.SAVENAME = "chinkosu"
         self.NON_MAX_SUPPRESSION_IOU = 0.01
-        self.LSTM = LSTM
 
     def initialize(self):
         print("initialize model")
-        self.model = det.edet(self.IMAGE_SIZE, self.COLOR_CHANNEL, self.CLASSIFICATION_TAGS, self.REGIONS, dropout = self.DROPOUT, bi = self.FPN_MODE, backbone = self.BACKBONE, LSTM = self.LSTM)
+        self.model = det.edet(self.IMAGE_SIZE, self.COLOR_CHANNEL, self.CLASSIFICATION_TAGS, self.REGIONS, dropout = self.DROPOUT, bi = self.FPN_MODE, backbone = self.BACKBONE)
         self.model.compile(optimizer=Adam(learning_rate=1e-3), loss={'regression': self.iouhuloss, "classification": tf.keras.losses.SparseCategoricalCrossentropy()},)
         b, h, w, c = self.model.input.shape
 

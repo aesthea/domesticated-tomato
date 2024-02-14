@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 1.20240207")
+        self.root.title("HARR VOTT 1.20240214")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -418,18 +418,22 @@ class widget:
         self.backbone_frame.grid(column = 0, row = 3)
         self.backbone = StringVar(self.root)
         self.backbone.set("B0")
+        self.backbone_radioA = Radiobutton(self.backbone_frame, text="S1", variable = self.backbone, value = "S1", font = self.normal_font, command = self.update)
+        self.backbone_radioA.grid(column = 0, row = 0)
+        self.backbone_radioB = Radiobutton(self.backbone_frame, text="S0", variable = self.backbone, value = "S0", font = self.normal_font, command = self.update)
+        self.backbone_radioB.grid(column = 1, row = 0)
         self.backbone_radio1 = Radiobutton(self.backbone_frame, text="B0", variable = self.backbone, value = "B0", font = self.normal_font, command = self.update)
-        self.backbone_radio1.grid(column = 0, row = 0)
+        self.backbone_radio1.grid(column = 2, row = 0)
         self.backbone_radio2 = Radiobutton(self.backbone_frame, text="B1", variable = self.backbone, value = "B1", font = self.normal_font, command = self.update)
-        self.backbone_radio2.grid(column = 1, row = 0)
-        self.backbone_radio3 = Radiobutton(self.backbone_frame, text="B2", variable = self.backbone, value = "B2", font = self.normal_font, command = self.update)
-        self.backbone_radio3.grid(column = 2, row = 0)
+        self.backbone_radio2.grid(column = 3, row = 0)
+##        self.backbone_radio3 = Radiobutton(self.backbone_frame, text="B2", variable = self.backbone, value = "B2", font = self.normal_font, command = self.update)
+##        self.backbone_radio3.grid(column = 4, row = 0)
         self.backbone_radio4 = Radiobutton(self.backbone_frame, text="B3", variable = self.backbone, value = "B3", font = self.normal_font, command = self.update)
-        self.backbone_radio4.grid(column = 3, row = 0)
-        self.backbone_radio5 = Radiobutton(self.backbone_frame, text="B4", variable = self.backbone, value = "B4", font = self.normal_font, command = self.update)
-        self.backbone_radio5.grid(column = 4, row = 0)
+        self.backbone_radio4.grid(column = 5, row = 0)
+##        self.backbone_radio5 = Radiobutton(self.backbone_frame, text="B4", variable = self.backbone, value = "B4", font = self.normal_font, command = self.update)
+##        self.backbone_radio5.grid(column = 6, row = 0)
         self.backbone_radio6 = Radiobutton(self.backbone_frame, text="B5", variable = self.backbone, value = "B5", font = self.normal_font, command = self.update)
-        self.backbone_radio6.grid(column = 5, row = 0)
+        self.backbone_radio6.grid(column = 7, row = 0)
         
         self.label(self.frame3, 300, 25, 2, 1, "FPN mode")
         self.fpn_frame = Frame(master = self.frame3, width = 300, height = 25)
@@ -455,14 +459,16 @@ class widget:
         self.input_size_frame.grid(column = 0, row = 5)
         self.input_size = StringVar(self.root)
         self.input_size.set("256")
+        self.input_size_radioA = Radiobutton(self.input_size_frame, text="96", variable = self.input_size, value = 96, font = self.normal_font, command = self.update)
+        self.input_size_radioA.grid(column = 0, row = 0)
         self.input_size_radio1 = Radiobutton(self.input_size_frame, text="128", variable = self.input_size, value = 128, font = self.normal_font, command = self.update)
-        self.input_size_radio1.grid(column = 0, row = 0)
+        self.input_size_radio1.grid(column = 1, row = 0)
         self.input_size_radio2 = Radiobutton(self.input_size_frame, text="224", variable = self.input_size, value = 224, font = self.normal_font, command = self.update)
-        self.input_size_radio2.grid(column = 1, row = 0)
+        self.input_size_radio2.grid(column = 2, row = 0)
         self.input_size_radio3 = Radiobutton(self.input_size_frame, text="256", variable = self.input_size, value = 256, font = self.normal_font, command = self.update)
-        self.input_size_radio3.grid(column = 2, row = 0)
+        self.input_size_radio3.grid(column = 3, row = 0)
         self.input_size_radio4 = Radiobutton(self.input_size_frame, text="320", variable = self.input_size, value = 320, font = self.normal_font, command = self.update)
-        self.input_size_radio4.grid(column = 3, row = 0)
+        self.input_size_radio4.grid(column = 4, row = 0)
 
         self.label(self.frame3, 300, 25, 4, 1, "Color channel")
         self.color_channel_frame = Frame(master = self.frame3, width = 300, height = 25)
@@ -726,7 +732,7 @@ class widget:
 
         if pts == 17:
             self.AI_MODEL = HARR_VOTT.load_model(self.data["input_size"], self.data["color_channel"], self.data["tags"], self.data["region"], \
-                                                 self.data["dropout"], self.data["fpn_mode"], self.data["backbone"], self.data["votts"], self.data["augment"], self.data["lstm"])
+                                                 self.data["dropout"], self.data["fpn_mode"], self.data["backbone"], self.data["votts"], self.data["augment"])
 
             self.AI_MODEL.BATCH_SIZE = self.data["batchsize"]
             self.AI_MODEL.HUBER = self.data["huber"]
@@ -882,7 +888,7 @@ class widget:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
             return False
-        v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"])
+        v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
 
 
     def save(self):
