@@ -416,7 +416,7 @@ def load_ai_by_pik(f = "tkpik.pik"):
     else:
         with open(f, "rb") as fio:
             tkpik = pickle.load(fio)
-            model = load_model(tkpik['input_size'], tkpik['color_channel'], tkpik['tags'], tkpik['region'], tkpik['dropout'], tkpik['fpn_mode'], tkpik['backbone'], tkpik['votts'], tkpik['augment'], tkpik['lstm'])
+            model = load_model(tkpik['input_size'], tkpik['color_channel'], tkpik['tags'], tkpik['region'], tkpik['dropout'], tkpik['fpn_mode'], tkpik['backbone'], tkpik['votts'], tkpik['augment'])
             model.SAVENAME = tkpik['savefile']
             model.OVERLAP_REQUIREMENT = tkpik['overlap']
             model.ANCHOR_LEVEL = tkpik['anchor']
@@ -689,7 +689,7 @@ class load_model:
             history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
         else:
             history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
-        
+
         loss = history.history['loss']
         classification_loss = history.history['classification_loss']
         regression_loss = history.history['regression_loss']
@@ -701,21 +701,25 @@ class load_model:
         if 'val_regression_loss' in history.history:
             val_regression_loss = history.history['val_regression_loss']
         
-        epochs_range = range(EPOCHS)
         plt.figure(figsize=(8, 8))
         plt.subplot(1, 2, 1)
+        epochs_range = range(len(history.history['loss']))
         plt.plot(epochs_range, loss, label='loss')
         if 'val_loss' in history.history:
+            epochs_range = range(len(history.history['val_loss']))
             plt.plot(epochs_range, val_loss, label='val_loss')
         plt.legend(loc='lower right')
         plt.title('LOSS')
 
         plt.subplot(1, 2, 2)
+        epochs_range = range(len(history.history['classification_loss']))
         plt.plot(epochs_range, classification_loss, label='classification_loss')
         plt.plot(epochs_range, regression_loss, label='regression_loss')
         if 'val_classification_loss' in history.history:
+            epochs_range = range(len(history.history['val_classification_loss']))
             plt.plot(epochs_range, val_classification_loss, label='val_classification_loss')
         if 'val_regression_loss' in history.history:
+            epochs_range = range(len(history.history['val_regression_loss']))
             plt.plot(epochs_range, val_regression_loss, label='val_regression_loss')
         plt.legend(loc='upper right')
         plt.title('Classification and regression')
