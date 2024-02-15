@@ -409,6 +409,20 @@ class widget:
         self.predict_button.pack(fill = BOTH, expand = True)
 
 
+        self.b10_frame = Frame(master = self.frame2, width = 200, height = 50)
+        self.b10_frame.grid_propagate(0)
+        self.b10_frame.pack_propagate(0)
+        self.b10_frame.grid(column = 0, row = 10)
+        
+        self.b11_frame = Frame(master = self.frame2, width = 200, height = 25)
+        self.b11_frame.grid_propagate(0)
+        self.b11_frame.pack_propagate(0)
+        self.b11_frame.grid(column = 0, row = 11)
+        self.train_button_cpu = Button(master = self.b11_frame, text = "CPU TRAIN", relief="groove", font = self.bold_font, bd = 2, command = self.cpu_train)
+        self.train_button_cpu.pack(fill = BOTH, expand = True)
+        
+
+
         #FRAME3
         self.label(self.frame3, 600, 25, 0, 0, "AI parameter (Important!!)", columnspan = 2)
         self.label(self.frame3, 300, 25, 2, 0, "Backbone")
@@ -873,7 +887,6 @@ class widget:
         else:
             return False
         print(EPOCH)
-
         for k in ("learning_rate", "steps"):
             if k not in self.data:
                 print("no data", k)
@@ -888,9 +901,40 @@ class widget:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
             return False
-        v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
+        if self.data["trainsize"] >= 1.0:
+            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True, no_validation = True)
+        else:
+            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
 
-
+    def cpu_train(self):
+        self.update()
+        EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
+        if EPOCH:
+            try:
+                EPOCH = int(EPOCH)
+            except Exception as e:
+                print(e)
+                messagebox.showwarning("Warning", "invalid EPOCH")
+                return False
+        else:
+            return False
+        print(EPOCH)
+        for k in ("learning_rate", "steps"):
+            if k not in self.data:
+                print("no data", k)
+                return False
+            if not self.data[k]:
+                print("no element", k)
+                return False
+            if not float(self.data[k]) > 0:
+                print("no value", k, self.data[k])
+                return False
+        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+            self.load_AI()
+            self.RELOAD_AI_FLAG = False
+            return False
+        v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
+        
     def save(self):
         if not self.AI_MODEL:
             print("CANNOT SAVE, NO AI MODEL")

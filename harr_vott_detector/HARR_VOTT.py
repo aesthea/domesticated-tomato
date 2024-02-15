@@ -144,16 +144,13 @@ class vott_loader:
                 if type(tf_img) == np.ndarray and type(bounding_box_with_class) == np.ndarray:
                     anc_iter = anc.make(tf_img, bounding_box_with_class)                    
                     for anc_im, anc_bbc in anc_iter:
-                        if len(anc_bbc) == 0 and random.random() > 1.0 - skip_no_bb_chance:
+                        if anc_bbc.shape[1] == 0 and random.random() >= 1.0 - skip_no_bb_chance:
                             continue
-
                         aug_im, aug_bb = augment(anc_im, anc_bbc)
                         w = aug_bb.shape[1]
                         h = aug_bb.shape[0]
-
                         if h == 0 or w == 0:
                             continue
-
                         new_array = []
                         for bb in aug_bb:
                             x1 = bb.x1
@@ -656,51 +653,87 @@ class load_model:
         g = gl(y_true, y_pred)
         return g + f * self.HUBER
 
-    def train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False):
+    def train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False):
         if not len(self.vott_available_paths):
             print("NO VOTT PATHS AVAILABLE")
             return False
-
         self.action = "train"
         tf.keras.backend.clear_session()
         gen = vott_loader(self.vott_available_paths, color_channel = self.model_compiled_channel, regions = self.REGIONS, train_split = self.TRAIN_SIZE)
-
         NULL_VALUE = self.model.output[0].shape[-1] - 1
-
         train_data = gen.batch(batch_size = self.BATCH_SIZE,
                                is_validation_set = False,
                                skip_no_bb_chance = self.NULL_SKIP,
                                imported_anchor = self.anchor,
                                augment_seq = self.AUGMENT,
                                null_class = NULL_VALUE)
-        
         validation_data = gen.batch(batch_size = self.BATCH_SIZE,
                                is_validation_set = True,
                                skip_no_bb_chance = self.NULL_SKIP,
                                imported_anchor = self.anchor,
                                augment_seq = self.AUGMENT,
                                null_class = NULL_VALUE)
-        
         self.model.optimizer.learning_rate = LR
         dtnow = datetime.datetime.now()
-
         if early_stopping:
-            callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 10, verbose = 0, mode = "min", restore_best_weights = True)
-            history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
+            if no_validation:
+                callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2, callbacks=[callback])
+            else:
+                callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
+        elif no_validation:
+            history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2)
         else:
             history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
+        self.show_training_result(history)
+        with open(self.SAVENAME + ".pik", "wb") as fio:
+            pickle.dump(gen.TAGS_FORMAT, fio)
+        return True
 
+    def cpu_train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False):
+        if not len(self.vott_available_paths):
+            print("NO VOTT PATHS AVAILABLE")
+            return False
+        self.action = "train"
+        tf.keras.backend.clear_session()
+        with tf.device("cpu:0"):
+            gen = vott_loader(self.vott_available_paths, color_channel = self.model_compiled_channel, regions = self.REGIONS, train_split = self.TRAIN_SIZE)
+            NULL_VALUE = self.model.output[0].shape[-1] - 1
+            train_data = gen.batch(batch_size = self.BATCH_SIZE,
+                                   is_validation_set = False,
+                                   skip_no_bb_chance = self.NULL_SKIP,
+                                   imported_anchor = self.anchor,
+                                   augment_seq = self.AUGMENT,
+                                   null_class = NULL_VALUE)
+            validation_data = gen.batch(batch_size = self.BATCH_SIZE,
+                                   is_validation_set = True,
+                                   skip_no_bb_chance = self.NULL_SKIP,
+                                   imported_anchor = self.anchor,
+                                   augment_seq = self.AUGMENT,
+                                   null_class = NULL_VALUE)
+            self.model.optimizer.learning_rate = LR
+            dtnow = datetime.datetime.now()
+            if early_stopping:
+                callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
+            else:
+                history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
+            self.show_training_result(history)
+            with open(self.SAVENAME + ".pik", "wb") as fio:
+                pickle.dump(gen.TAGS_FORMAT, fio)
+            return True
+
+    def show_training_result(self, history):
         loss = history.history['loss']
         classification_loss = history.history['classification_loss']
         regression_loss = history.history['regression_loss']
-
         if 'val_loss' in history.history:
             val_loss = history.history['val_loss']
         if 'val_classification_loss' in history.history:
             val_classification_loss = history.history['val_classification_loss']
         if 'val_regression_loss' in history.history:
             val_regression_loss = history.history['val_regression_loss']
-        
         plt.figure(figsize=(8, 8))
         plt.subplot(1, 2, 1)
         epochs_range = range(len(history.history['loss']))
@@ -710,7 +743,6 @@ class load_model:
             plt.plot(epochs_range, val_loss, label='val_loss')
         plt.legend(loc='lower right')
         plt.title('LOSS')
-
         plt.subplot(1, 2, 2)
         epochs_range = range(len(history.history['classification_loss']))
         plt.plot(epochs_range, classification_loss, label='classification_loss')
@@ -723,15 +755,10 @@ class load_model:
             plt.plot(epochs_range, val_regression_loss, label='val_regression_loss')
         plt.legend(loc='upper right')
         plt.title('Classification and regression')
-
         plt.legend()
         plt.show()
         plt.clf()
         plt.close()
-
-        with open(self.SAVENAME + ".pik", "wb") as fio:
-            pickle.dump(gen.TAGS_FORMAT, fio)
-        return True
 
     def save(self, f = None):
         self.action = "save"
@@ -846,7 +873,7 @@ def test_predict():
 
 def test():
     a = anchor()
-    g = vott_loader(['C:/PROJECT/HARR_VOTT/vott-json-export/OCR-export.json',])
+    g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/type2 train/vott-json-export/TAPING-PIN-PROBE-type2-train-export.json',])
     b = g.batch()
     sanity_check(b)
 
