@@ -62,6 +62,9 @@ async def handler(websocket, path, predict, port_no):
                     data = {}
                     
                 if "args" in data:
+                    if "server" in data["args"]:
+                        if "load_weight" in data["args"]["server"]:
+                            load_model()
                     result["args"] = data["args"]
                     
                 if "filename" in data and "bytes" in data:
@@ -186,12 +189,14 @@ def run(PORT = PORT):
         model = HARR_VOTT.load_ai_by_pik(PIK)
         model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
         predict = model.predict
+        load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
         if not PORT:
             PORT = int(data['port'])
         start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
+        print("RUN DATA %s SERVER" % PORT)
         asyncio.get_event_loop().run_until_complete(start_server_00)
         asyncio.get_event_loop().run_forever()
-        print("RUN DATA %s SERVER" % PORT)
+        
     
 if __name__ == "__main__":
     run_server = True
@@ -202,10 +207,12 @@ if __name__ == "__main__":
             model = HARR_VOTT.load_ai_by_pik(PIK)
             model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
             predict = model.predict
+            load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
             if not PORT:
                 PORT = int(data['port'])
             start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
+            print("RUN DATA %s SERVER" % PORT)     
             asyncio.get_event_loop().run_until_complete(start_server_00)
             asyncio.get_event_loop().run_forever()
-            print("RUN DATA %s SERVER" % PORT)        
+               
 
