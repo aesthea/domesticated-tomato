@@ -146,7 +146,7 @@ class vott_loader:
                     for anc_im, anc_bbc in anc_iter:
                         if anc_bbc.shape[1] == 0 and random.random() >= 1.0 - skip_no_bb_chance:
                             continue
-                        aug_im, aug_bb = augment(anc_im, anc_bbc)
+                        aug_im, aug_bb = augment(anc_im, anc_bbc, augment_seq)
                         w = aug_bb.shape[1]
                         h = aug_bb.shape[0]
                         if h == 0 or w == 0:
