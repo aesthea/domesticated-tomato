@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 1.20240214")
+        self.root.title("HARR VOTT 1.20240216")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -418,10 +418,8 @@ class widget:
         self.b11_frame.grid_propagate(0)
         self.b11_frame.pack_propagate(0)
         self.b11_frame.grid(column = 0, row = 11)
-        self.train_button_cpu = Button(master = self.b11_frame, text = "CPU TRAIN", relief="groove", font = self.bold_font, bd = 2, command = self.cpu_train)
+        self.train_button_cpu = Button(master = self.b11_frame, text = "TRAIN (early stopping)", relief="groove", font = self.bold_font, bd = 2, command = lambda : self.train(early_stopping = True, cpu_training = False))
         self.train_button_cpu.pack(fill = BOTH, expand = True)
-        
-
 
         #FRAME3
         self.label(self.frame3, 600, 25, 0, 0, "AI parameter (Important!!)", columnspan = 2)
@@ -874,7 +872,7 @@ class widget:
         #    self.load_AI()
         self.RELOAD_AI_FLAG = reload_AI
 
-    def train(self):
+    def train(self, early_stopping = False, cpu_training = False):
         self.update()
         EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
         if EPOCH:
@@ -900,40 +898,16 @@ class widget:
         if not self.AI_MODEL or self.RELOAD_AI_FLAG:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
+            print("PLEASE LOAD WEIGHT")
             return False
         if self.data["trainsize"] >= 1.0:
-            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True, no_validation = True)
+            no_validation = True
         else:
-            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
-
-    def cpu_train(self):
-        self.update()
-        EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
-        if EPOCH:
-            try:
-                EPOCH = int(EPOCH)
-            except Exception as e:
-                print(e)
-                messagebox.showwarning("Warning", "invalid EPOCH")
-                return False
+            no_validation = False
+        if cpu_training:
+            v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = True)
         else:
-            return False
-        print(EPOCH)
-        for k in ("learning_rate", "steps"):
-            if k not in self.data:
-                print("no data", k)
-                return False
-            if not self.data[k]:
-                print("no element", k)
-                return False
-            if not float(self.data[k]) > 0:
-                print("no value", k, self.data[k])
-                return False
-        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
-            self.load_AI()
-            self.RELOAD_AI_FLAG = False
-            return False
-        v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = True)
+            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = True)
         
     def save(self):
         if not self.AI_MODEL:
@@ -945,9 +919,9 @@ class widget:
 
     def load(self):
         print("widget.load")
-        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
-            self.load_AI()
-            self.RELOAD_AI_FLAG = False
+        #if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+        self.load_AI()
+        self.RELOAD_AI_FLAG = False
         self.AI_MODEL.load(self.value_type(self.inputs["savefile"], str))
         
 

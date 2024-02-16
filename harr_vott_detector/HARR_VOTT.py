@@ -677,10 +677,10 @@ class load_model:
         dtnow = datetime.datetime.now()
         if early_stopping:
             if no_validation:
-                callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 25, verbose = 0, mode = "min", restore_best_weights = True)
                 history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2, callbacks=[callback])
             else:
-                callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 25, verbose = 0, mode = "min", restore_best_weights = True)
                 history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
         elif no_validation:
             history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2)
@@ -691,7 +691,7 @@ class load_model:
             pickle.dump(gen.TAGS_FORMAT, fio)
         return True
 
-    def cpu_train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False):
+    def cpu_train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False):
         if not len(self.vott_available_paths):
             print("NO VOTT PATHS AVAILABLE")
             return False
@@ -715,8 +715,14 @@ class load_model:
             self.model.optimizer.learning_rate = LR
             dtnow = datetime.datetime.now()
             if early_stopping:
-                callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
-                history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
+                if no_validation:
+                    callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                    history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2, callbacks=[callback])
+                else:
+                    callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 50, verbose = 0, mode = "min", restore_best_weights = True)
+                    history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2, callbacks=[callback])
+            elif no_validation:
+                history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2)
             else:
                 history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
             self.show_training_result(history)
