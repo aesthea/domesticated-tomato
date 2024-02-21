@@ -124,7 +124,7 @@ class vott_loader:
         bounding_box_with_class = np.array([[n[:5] for n in bounding_box_list]], dtype = np.float16)
         return tf_img, bounding_box_with_class
 
-    def batch(self, batch_size = 36, is_validation_set = False, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99, normalization = False, random_drop = 0.0):
+    def batch(self, batch_size = 36, is_validation_set = False, overlap_requirement = 0.9, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99, normalization = False, random_drop = 0.0):
         if imported_anchor:
             anc = imported_anchor
         else:
@@ -145,7 +145,7 @@ class vott_loader:
             for key in asset:
                 tf_img, bounding_box_with_class = self.prepare_image_region(key)
                 if type(tf_img) == np.ndarray and type(bounding_box_with_class) == np.ndarray:
-                    anc_iter = anc.make(tf_img, bounding_box_with_class, random_drop = random_drop)                    
+                    anc_iter = anc.make(tf_img, bounding_box_with_class, overlap_requirement = overlap_requirement, random_drop = random_drop)                    
                     for anc_im, anc_bbc in anc_iter:
                         if anc_bbc.shape[1] == 0 and random.random() >= 1.0 - skip_no_bb_chance:
                             continue
@@ -164,7 +164,11 @@ class vott_loader:
                             cy = (y1 + y2) // 2                            
                             c = math.sqrt(pow(max(w//2, cx) - min(w//2, cx), 2) + pow(max(h//2, cy) - min(h//2, cy), 2))
                             label = int(bb.label)
-                            new_array.append([x1, y1, x2, y2, label, c])
+                            if(bb_intersection([x1, y1, x2, y2], [0, 0, w, h]) > overlap_requirement) and x2 - x1 > w // 8 and y2 - y1 > h // 8:
+                                new_array.append([x1, y1, x2, y2, label, c])
+
+                        if len(new_array) == 0 and random.random() >= 1.0 - skip_no_bb_chance:
+                            continue
 
                         new_array.sort(key = lambda k : 1e6 if k[4] not in self.TAG_KEY else k[5])
                         new_array = np.array(new_array, np.float16)
@@ -681,6 +685,7 @@ class load_model:
         NULL_VALUE = self.model.output[0].shape[-1] - 1
         train_data = gen.batch(batch_size = self.BATCH_SIZE,
                                 is_validation_set = False,
+                                overlap_requirement = self.OVERLAP_REQUIREMENT,
                                 skip_no_bb_chance = self.NULL_SKIP,
                                 imported_anchor = self.anchor,
                                 augment_seq = self.AUGMENT,
@@ -689,6 +694,7 @@ class load_model:
                                 random_drop = self.RANDOM_DROP)
         validation_data = gen.batch(batch_size = self.BATCH_SIZE,
                                 is_validation_set = True,
+                                overlap_requirement = self.OVERLAP_REQUIREMENT,
                                 skip_no_bb_chance = self.NULL_SKIP,
                                 imported_anchor = self.anchor,
                                 augment_seq = self.AUGMENT,
@@ -724,6 +730,7 @@ class load_model:
             NULL_VALUE = self.model.output[0].shape[-1] - 1
             train_data = gen.batch(batch_size = self.BATCH_SIZE,
                                     is_validation_set = False,
+                                    overlap_requirement = self.OVERLAP_REQUIREMENT,
                                     skip_no_bb_chance = self.NULL_SKIP,
                                     imported_anchor = self.anchor,
                                     augment_seq = self.AUGMENT,
@@ -732,6 +739,7 @@ class load_model:
                                     random_drop = self.RANDOM_DROP)
             validation_data = gen.batch(batch_size = self.BATCH_SIZE,
                                     is_validation_set = True,
+                                    overlap_requirement = self.OVERLAP_REQUIREMENT,
                                     skip_no_bb_chance = self.NULL_SKIP,
                                     imported_anchor = self.anchor,
                                     augment_seq = self.AUGMENT,
@@ -819,6 +827,7 @@ class load_model:
             vottgen = vott_loader(self.vott_available_paths, color_channel = self.model_compiled_channel, regions = self.REGIONS, train_split = self.TRAIN_SIZE)
             self.gen = vottgen.batch(batch_size = self.BATCH_SIZE,
                                      is_validation_set = False,
+                                     overlap_requirement = self.OVERLAP_REQUIREMENT,
                                      skip_no_bb_chance = self.NULL_SKIP,
                                      imported_anchor = self.anchor,
                                      augment_seq = self.AUGMENT,
