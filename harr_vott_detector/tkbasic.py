@@ -524,6 +524,7 @@ class widget:
         self.label_w_input(self.frame3, 100, 200, 25, 15, 1, "Augment", "augment", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         
         self.label_w_input(self.frame3, 100, 200, 25, 16, 0, "NMS_IoU", "non_max_suppression_iou", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
+        self.label_w_input(self.frame3, 100, 200, 25, 16, 1, "Image Skip", "random_drop", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
 
 
     def load_pik(self):
@@ -732,6 +733,16 @@ class widget:
         else:
             self.normalization.set(False)
             self.data["normalization"] = False
+
+        if "random_drop" in self.data:
+            if self.data["random_drop"] or self.data["random_drop"] == 0:
+                self.inputs["random_drop"].set(self.data["random_drop"])
+            else:
+                self.inputs["random_drop"].set(0.2)
+                self.data["random_drop"] = 0.2
+        else:
+            self.inputs["random_drop"].set(0.2)
+            self.data["random_drop"] = 0.2
         
         self.update()
         
@@ -747,7 +758,7 @@ class widget:
         for k in ("region", "tags", "anchor", "nullskip", \
                   "batchsize", "trainsize", "huber", "backbone", "fpn_mode", \
                   "input_size", "color_channel", "dropout", "overlap", "savefile", "augment", "non_max_suppression_iou", "lstm", \
-                  "normalization"):
+                  "normalization", "random_drop"):
             if k in self.data:
                 if self.data[k]:
                     pts += 1
@@ -758,7 +769,7 @@ class widget:
             else:
                 print(k, "not set")
 
-        if pts == 18:
+        if pts == 19:
             self.AI_MODEL = HARR_VOTT.load_model(self.data["input_size"], self.data["color_channel"], self.data["tags"], self.data["region"], \
                                                  self.data["dropout"], self.data["fpn_mode"], self.data["backbone"], self.data["votts"], self.data["augment"])
 
@@ -771,6 +782,7 @@ class widget:
             self.AI_MODEL.SAVENAME = self.data["savefile"]
             self.AI_MODEL.NON_MAX_SUPPRESSION_IOU = self.data["non_max_suppression_iou"]
             self.AI_MODEL.NORMALIZATION = self.data["normalization"]
+            self.AI_MODEL.RANDOM_DROP = self.data["random_drop"]
             self.AI_MODEL.initialize()
             
         else:
@@ -831,6 +843,8 @@ class widget:
             reload_AI = True
         elif self.data["normalization"] != self.value_type(self.normalization, bool):
             reload_AI = True
+        elif self.data["random_drop"] != self.value_type(self.inputs["random_drop"], float):
+            reload_AI = True
 
         if self.AI_MODEL:
             if self.AI_MODEL.BACKBONE != self.value_type(self.backbone, str):
@@ -857,6 +871,8 @@ class widget:
                 reload_AI = True
             elif self.AI_MODEL.NORMALIZATION != self.value_type(self.normalization, bool):
                 reload_AI = True
+            elif self.AI_MODEL.RANDOM_DROP != self.value_type(self.inputs["random_drop"], float):
+                reload_AI = True
                 
         self.data["backbone"] = self.value_type(self.backbone, str)
         self.data["fpn_mode"] = self.value_type(self.fpn_mode, int)
@@ -881,6 +897,7 @@ class widget:
         self.data["non_max_suppression_iou"] = self.value_type(self.inputs["non_max_suppression_iou"], float)
         self.data["lstm"] = self.value_type(self.lstm, bool)
         self.data["normalization"] = self.value_type(self.normalization, bool)
+        self.data["random_drop"] = self.value_type(self.inputs["random_drop"], float)
 
         with open("tkpik.pik", "wb") as fio:
             pickle.dump(self.data, fio)

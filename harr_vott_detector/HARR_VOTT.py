@@ -124,7 +124,7 @@ class vott_loader:
         bounding_box_with_class = np.array([[n[:5] for n in bounding_box_list]], dtype = np.float16)
         return tf_img, bounding_box_with_class
 
-    def batch(self, batch_size = 36, is_validation_set = False, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99, normalization = False):
+    def batch(self, batch_size = 36, is_validation_set = False, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99, normalization = False, random_drop = 0.0):
         if imported_anchor:
             anc = imported_anchor
         else:
@@ -137,12 +137,15 @@ class vott_loader:
         batch_image = np.ndarray([0, anc.crop_size[1], anc.crop_size[0], self.color_channel], dtype = np.int16)
         batch_label = np.ndarray([0, self.regions, 1], dtype = np.int16)
         batch_bbox = np.ndarray([0, self.regions, 4], dtype = np.float16)
-        
+
+        if random_drop > 0.9:
+            random_drop = 0.9
+            
         while len(asset) > 0:                
             for key in asset:
                 tf_img, bounding_box_with_class = self.prepare_image_region(key)
                 if type(tf_img) == np.ndarray and type(bounding_box_with_class) == np.ndarray:
-                    anc_iter = anc.make(tf_img, bounding_box_with_class)                    
+                    anc_iter = anc.make(tf_img, bounding_box_with_class, random_drop = random_drop)                    
                     for anc_im, anc_bbc in anc_iter:
                         if anc_bbc.shape[1] == 0 and random.random() >= 1.0 - skip_no_bb_chance:
                             continue
@@ -274,12 +277,14 @@ class anchor:
                 box.append([x1, y1, x2, y2]) 
         return box
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, random_drop = 0.0):
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
         crop_iter = iter(zip(self.boxes, self.box_indices))
         for index, box_value in enumerate(crop_iter):
+            if random.random() > 1.0 - random_drop:
+                continue
             box, box_indice = box_value
             box = np.expand_dims(box, 0)
             box_indice = np.expand_dims(box_indice, 0)
@@ -427,6 +432,7 @@ def load_ai_by_pik(f = "tkpik.pik"):
             model.ANCHOR_LEVEL = tkpik['anchor']
             model.PORT = tkpik["port"]
             model.NORMALIZATION = tkpik["normalization"]
+            model.RANDOM_DROP = tkpik["random_drop"]
             model.initialize()
             return model
         
@@ -451,6 +457,7 @@ class load_model:
         self.SAVENAME = "chinkosu"
         self.NON_MAX_SUPPRESSION_IOU = 0.01
         self.NORMALIZATION = False
+        self.RANDOM_DROP = 0.2
 
     def initialize(self):
         print("initialize model")
@@ -678,14 +685,16 @@ class load_model:
                                 imported_anchor = self.anchor,
                                 augment_seq = self.AUGMENT,
                                 null_class = NULL_VALUE,
-                                normalization = self.NORMALIZATION)
+                                normalization = self.NORMALIZATION,
+                                random_drop = self.RANDOM_DROP)
         validation_data = gen.batch(batch_size = self.BATCH_SIZE,
                                 is_validation_set = True,
                                 skip_no_bb_chance = self.NULL_SKIP,
                                 imported_anchor = self.anchor,
                                 augment_seq = self.AUGMENT,
                                 null_class = NULL_VALUE,
-                                normalization = self.NORMALIZATION)
+                                normalization = self.NORMALIZATION,
+                                random_drop = self.RANDOM_DROP)
         self.model.optimizer.learning_rate = LR
         dtnow = datetime.datetime.now()
         if early_stopping:
@@ -719,14 +728,16 @@ class load_model:
                                     imported_anchor = self.anchor,
                                     augment_seq = self.AUGMENT,
                                     null_class = NULL_VALUE,
-                                    normalization = self.NORMALIZATION)
+                                    normalization = self.NORMALIZATION,
+                                    random_drop = self.RANDOM_DROP)
             validation_data = gen.batch(batch_size = self.BATCH_SIZE,
                                     is_validation_set = True,
                                     skip_no_bb_chance = self.NULL_SKIP,
                                     imported_anchor = self.anchor,
                                     augment_seq = self.AUGMENT,
                                     null_class = NULL_VALUE,
-                                    normalization = self.NORMALIZATION)
+                                    normalization = self.NORMALIZATION,
+                                    random_drop = self.RANDOM_DROP)
             self.model.optimizer.learning_rate = LR
             dtnow = datetime.datetime.now()
             if early_stopping:
@@ -811,7 +822,9 @@ class load_model:
                                      skip_no_bb_chance = self.NULL_SKIP,
                                      imported_anchor = self.anchor,
                                      augment_seq = self.AUGMENT,
-                                     null_class = NULL_VALUE)
+                                     null_class = NULL_VALUE,
+                                     normalization = self.NORMALIZATION,
+                                     random_drop = self.RANDOM_DROP)
             self.TAGS_FORMAT = vottgen.TAGS_FORMAT
         
         self.action = "sanity_check"
