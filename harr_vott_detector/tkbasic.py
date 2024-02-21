@@ -50,7 +50,7 @@ class ThreadWithReturnValue(threading.Thread):
 class widget:
     def __init__(self):
         self.root = Tk()
-        self.root.title("HARR VOTT 1.20240216")
+        self.root.title("HARR VOTT 1.2024d")
         self.width = work_area[2]
         self.height = work_area[3] - 25
 
@@ -464,6 +464,11 @@ class widget:
         #self.lstm_checkbutton = Checkbutton(self.fpn_frame, text='LSTM',variable=self.lstm, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
         #self.lstm_checkbutton.grid(column = 2, row = 0)
 
+        self.normalization = BooleanVar(self.root)
+        self.normalization.set(False)
+        self.normalization_checkbutton = Checkbutton(self.fpn_frame, text='NORMALIZE',variable=self.normalization, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
+        self.normalization_checkbutton.grid(column = 2, row = 0)
+        
         self.label(self.frame3, 300, 25, 4, 0, "Input size")
         self.input_size_frame = Frame(master = self.frame3, width = 300, height = 25)
         self.input_size_frame.grid_propagate(0)
@@ -717,6 +722,16 @@ class widget:
         else:
             self.lstm.set(False)
             self.data["lstm"] = False
+
+        if "normalization" in self.data:
+            if self.data["normalization"] != None:
+                self.normalization.set(self.data["normalization"])
+            else:
+                self.normalization.set(False)
+                self.data["normalization"] = False
+        else:
+            self.normalization.set(False)
+            self.data["normalization"] = False
         
         self.update()
         
@@ -731,7 +746,8 @@ class widget:
 
         for k in ("region", "tags", "anchor", "nullskip", \
                   "batchsize", "trainsize", "huber", "backbone", "fpn_mode", \
-                  "input_size", "color_channel", "dropout", "overlap", "savefile", "augment", "non_max_suppression_iou", "lstm"):
+                  "input_size", "color_channel", "dropout", "overlap", "savefile", "augment", "non_max_suppression_iou", "lstm", \
+                  "normalization"):
             if k in self.data:
                 if self.data[k]:
                     pts += 1
@@ -742,7 +758,7 @@ class widget:
             else:
                 print(k, "not set")
 
-        if pts == 17:
+        if pts == 18:
             self.AI_MODEL = HARR_VOTT.load_model(self.data["input_size"], self.data["color_channel"], self.data["tags"], self.data["region"], \
                                                  self.data["dropout"], self.data["fpn_mode"], self.data["backbone"], self.data["votts"], self.data["augment"])
 
@@ -754,6 +770,7 @@ class widget:
             self.AI_MODEL.OVERLAP_REQUIREMENT = self.data["overlap"]
             self.AI_MODEL.SAVENAME = self.data["savefile"]
             self.AI_MODEL.NON_MAX_SUPPRESSION_IOU = self.data["non_max_suppression_iou"]
+            self.AI_MODEL.NORMALIZATION = self.data["normalization"]
             self.AI_MODEL.initialize()
             
         else:
@@ -812,6 +829,8 @@ class widget:
             reload_AI = True
         elif self.data["lstm"] != self.value_type(self.lstm, bool):
             reload_AI = True
+        elif self.data["normalization"] != self.value_type(self.normalization, bool):
+            reload_AI = True
 
         if self.AI_MODEL:
             if self.AI_MODEL.BACKBONE != self.value_type(self.backbone, str):
@@ -836,6 +855,8 @@ class widget:
                 reload_AI = True
             elif self.AI_MODEL.NON_MAX_SUPPRESSION_IOU != self.value_type(self.inputs["non_max_suppression_iou"], float):
                 reload_AI = True
+            elif self.AI_MODEL.NORMALIZATION != self.value_type(self.normalization, bool):
+                reload_AI = True
                 
         self.data["backbone"] = self.value_type(self.backbone, str)
         self.data["fpn_mode"] = self.value_type(self.fpn_mode, int)
@@ -859,6 +880,7 @@ class widget:
         self.data["augment"] = self.value_type(self.inputs["augment"], int)
         self.data["non_max_suppression_iou"] = self.value_type(self.inputs["non_max_suppression_iou"], float)
         self.data["lstm"] = self.value_type(self.lstm, bool)
+        self.data["normalization"] = self.value_type(self.normalization, bool)
 
         with open("tkpik.pik", "wb") as fio:
             pickle.dump(self.data, fio)
@@ -867,9 +889,6 @@ class widget:
             if len(self.data["savefile"]) > 3:
                 with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
                     pickle.dump(self.data, fio)
-
-        #if reload_AI:
-        #    self.load_AI()
         self.RELOAD_AI_FLAG = reload_AI
 
     def train(self, early_stopping = False, cpu_training = False):
@@ -905,9 +924,9 @@ class widget:
         else:
             no_validation = False
         if cpu_training:
-            v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = True)
+            v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
         else:
-            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = True)
+            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
         
     def save(self):
         if not self.AI_MODEL:

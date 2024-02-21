@@ -124,7 +124,7 @@ class vott_loader:
         bounding_box_with_class = np.array([[n[:5] for n in bounding_box_list]], dtype = np.float16)
         return tf_img, bounding_box_with_class
 
-    def batch(self, batch_size = 36, is_validation_set = False, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99):
+    def batch(self, batch_size = 36, is_validation_set = False, skip_no_bb_chance = 0.7, imported_anchor = None, augment_seq = None, null_class = 99, normalization = False):
         if imported_anchor:
             anc = imported_anchor
         else:
@@ -195,7 +195,13 @@ class vott_loader:
                                 batch_bbox = np.append(batch_bbox, np_region_bb, axis = 0)
 
                                 if batch_image.shape[0] >= batch_size:
-                                    yield batch_image.astype(np.int16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
+                                    batch_image = np.where(batch_image > 255.0, 255.0, batch_image)
+                                    batch_image = np.where(batch_image < 0.0, 0.0, batch_image)
+                                    if normalization:
+                                        batch_image = batch_image / np.max(batch_image)
+                                    batch_bbox = np.where(batch_bbox > 1.0, 1.0, batch_bbox)
+                                    batch_bbox = np.where(batch_bbox < 0.0, 0.0, batch_bbox)
+                                    yield batch_image.astype(np.float16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
                         
 
 class anchor:
@@ -378,6 +384,8 @@ def bb_intersection(boxA, boxB):
 
 def sanity_check(gen):
     x,(y,z) = gen.__next__()
+    if np.max(x) <= 1.0:
+        x = x * 255
     if x.shape[-1] == 1:
         x = tf.convert_to_tensor(x, tf.int16)
         x = tf.image.grayscale_to_rgb(x, name=None)
@@ -418,6 +426,7 @@ def load_ai_by_pik(f = "tkpik.pik"):
             model.OVERLAP_REQUIREMENT = tkpik['overlap']
             model.ANCHOR_LEVEL = tkpik['anchor']
             model.PORT = tkpik["port"]
+            model.NORMALIZATION = tkpik["normalization"]
             model.initialize()
             return model
         
@@ -441,6 +450,7 @@ class load_model:
         self.AUGMENT = AUGMENT
         self.SAVENAME = "chinkosu"
         self.NON_MAX_SUPPRESSION_IOU = 0.01
+        self.NORMALIZATION = False
 
     def initialize(self):
         print("initialize model")
@@ -464,9 +474,6 @@ class load_model:
             try:
                 temp_gen = vott_loader(self.vott_available_paths)
                 self.tag_format = temp_gen.TAGS_FORMAT
-                #print("SAVE PIK", __file__)
-##                with open(self.SAVENAME + ".pik", "wb") as fio:
-##                    pickle.dump(temp_gen.TAGS_FORMAT, fio)
             except FileNotFoundError as e:
                 print(e)
 
@@ -493,7 +500,7 @@ class load_model:
 
         image = preprocess_func(image.numpy())
 
-        image_for_predict = np.ndarray([0, self.anchor.crop_size[0], self.anchor.crop_size[1], model_channel], np.int16)
+        image_for_predict = np.ndarray([0, self.anchor.crop_size[0], self.anchor.crop_size[1], model_channel], np.float16)
         anchor_gen = self.anchor.make(image)
         for im, bb in anchor_gen:
             image_for_predict = np.append(image_for_predict, im, axis = 0)
@@ -514,9 +521,13 @@ class load_model:
             plt.close()
 
         with tf.device("cpu:0"):
+            if self.NORMALIZATION:
+                image_for_predict = image_for_predict / np.max(image_for_predict)
             inference = self.model.predict(image_for_predict, verbose = 0)
     
         if debug:
+            if np.max(image_for_predict) <= 1.0:
+                image_for_predict = image_for_predict * 255
             debug_grid = tf.image.draw_bounding_boxes(image_for_predict, inference[1], [[255,255,255]])
             classifier = tf.argmax(inference[0], axis = -1).numpy()
             sqr_grid = math.ceil(math.sqrt(debug_grid.shape[0]))
@@ -662,17 +673,19 @@ class load_model:
         gen = vott_loader(self.vott_available_paths, color_channel = self.model_compiled_channel, regions = self.REGIONS, train_split = self.TRAIN_SIZE)
         NULL_VALUE = self.model.output[0].shape[-1] - 1
         train_data = gen.batch(batch_size = self.BATCH_SIZE,
-                               is_validation_set = False,
-                               skip_no_bb_chance = self.NULL_SKIP,
-                               imported_anchor = self.anchor,
-                               augment_seq = self.AUGMENT,
-                               null_class = NULL_VALUE)
+                                is_validation_set = False,
+                                skip_no_bb_chance = self.NULL_SKIP,
+                                imported_anchor = self.anchor,
+                                augment_seq = self.AUGMENT,
+                                null_class = NULL_VALUE,
+                                normalization = self.NORMALIZATION)
         validation_data = gen.batch(batch_size = self.BATCH_SIZE,
-                               is_validation_set = True,
-                               skip_no_bb_chance = self.NULL_SKIP,
-                               imported_anchor = self.anchor,
-                               augment_seq = self.AUGMENT,
-                               null_class = NULL_VALUE)
+                                is_validation_set = True,
+                                skip_no_bb_chance = self.NULL_SKIP,
+                                imported_anchor = self.anchor,
+                                augment_seq = self.AUGMENT,
+                                null_class = NULL_VALUE,
+                                normalization = self.NORMALIZATION)
         self.model.optimizer.learning_rate = LR
         dtnow = datetime.datetime.now()
         if early_stopping:
@@ -701,17 +714,19 @@ class load_model:
             gen = vott_loader(self.vott_available_paths, color_channel = self.model_compiled_channel, regions = self.REGIONS, train_split = self.TRAIN_SIZE)
             NULL_VALUE = self.model.output[0].shape[-1] - 1
             train_data = gen.batch(batch_size = self.BATCH_SIZE,
-                                   is_validation_set = False,
-                                   skip_no_bb_chance = self.NULL_SKIP,
-                                   imported_anchor = self.anchor,
-                                   augment_seq = self.AUGMENT,
-                                   null_class = NULL_VALUE)
+                                    is_validation_set = False,
+                                    skip_no_bb_chance = self.NULL_SKIP,
+                                    imported_anchor = self.anchor,
+                                    augment_seq = self.AUGMENT,
+                                    null_class = NULL_VALUE,
+                                    normalization = self.NORMALIZATION)
             validation_data = gen.batch(batch_size = self.BATCH_SIZE,
-                                   is_validation_set = True,
-                                   skip_no_bb_chance = self.NULL_SKIP,
-                                   imported_anchor = self.anchor,
-                                   augment_seq = self.AUGMENT,
-                                   null_class = NULL_VALUE)
+                                    is_validation_set = True,
+                                    skip_no_bb_chance = self.NULL_SKIP,
+                                    imported_anchor = self.anchor,
+                                    augment_seq = self.AUGMENT,
+                                    null_class = NULL_VALUE,
+                                    normalization = self.NORMALIZATION)
             self.model.optimizer.learning_rate = LR
             dtnow = datetime.datetime.now()
             if early_stopping:
@@ -801,6 +816,8 @@ class load_model:
         
         self.action = "sanity_check"
         x,(y,z) = self.gen.__next__()
+        if np.max(x) <= 1.0:
+            x = x * 255
         if x.shape[-1] == 1:
             x = tf.convert_to_tensor(x, tf.int16)
             x = tf.image.grayscale_to_rgb(x, name=None)
@@ -877,11 +894,12 @@ def test_predict():
     model.load()
     return model
 
-def test():
+def test(normalization = False):
     a = anchor()
     g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/type2 train/vott-json-export/TAPING-PIN-PROBE-type2-train-export.json',])
-    b = g.batch()
+    b = g.batch(normalization = normalization)
     sanity_check(b)
+    return b
 
 def debug():
     fp = "C:/Users/CSIPIG0031/Downloads/T030_image_left_view_0.jpg"
