@@ -23,7 +23,7 @@ import tensorflow_addons as tfa
 import urllib
 
 try:
-    import MODEL as det
+    import efficient_det as det
 except Exception as e:
     SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "MODEL.py")
     spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
