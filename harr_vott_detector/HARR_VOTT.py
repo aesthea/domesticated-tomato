@@ -32,6 +32,8 @@ except Exception as e:
     det = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(det)
 
+MINIMUM_PERC = 0.08
+
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 
@@ -134,9 +136,11 @@ class vott_loader:
         else:
             asset = self.training_data
 
-        batch_image = np.ndarray([0, anc.crop_size[1], anc.crop_size[0], self.color_channel], dtype = np.int16)
-        batch_label = np.ndarray([0, self.regions, 1], dtype = np.int16)
-        batch_bbox = np.ndarray([0, self.regions, 4], dtype = np.float16)
+        BATCH_NO = 0
+
+        batch_image = np.ndarray([batch_size, anc.crop_size[1], anc.crop_size[0], self.color_channel], dtype = np.float16)
+        batch_label = np.ndarray([batch_size, self.regions, 1], dtype = np.int16)
+        batch_bbox = np.ndarray([batch_size, self.regions, 4], dtype = np.float16)
 
         if random_drop > 0.9:
             random_drop = 0.9
@@ -145,7 +149,7 @@ class vott_loader:
             for key in asset:
                 tf_img, bounding_box_with_class = self.prepare_image_region(key)
                 if type(tf_img) == np.ndarray and type(bounding_box_with_class) == np.ndarray:
-                    anc_iter = anc.make(tf_img, bounding_box_with_class, overlap_requirement = overlap_requirement, random_drop = random_drop)                    
+                    anc_iter = anc.make(tf_img, bounding_box_with_class, overlap_requirement = overlap_requirement, skip_no_bb_chance = skip_no_bb_chance, random_drop = random_drop)                    
                     for anc_im, anc_bbc in anc_iter:
                         if anc_bbc.shape[1] == 0 and random.random() >= 1.0 - skip_no_bb_chance:
                             continue
@@ -164,7 +168,7 @@ class vott_loader:
                             cy = (y1 + y2) // 2                            
                             c = math.sqrt(pow(max(w//2, cx) - min(w//2, cx), 2) + pow(max(h//2, cy) - min(h//2, cy), 2))
                             label = int(bb.label)
-                            if(bb_intersection([x1, y1, x2, y2], [0, 0, w, h]) > overlap_requirement) and x2 - x1 > w // 8 and y2 - y1 > h // 8:
+                            if(bb_intersection([x1, y1, x2, y2], [0, 0, w, h]) > overlap_requirement) and (x2 - x1) / w > MINIMUM_PERC and (y2 - y1) / h > MINIMUM_PERC:
                                 new_array.append([x1, y1, x2, y2, label, c])
 
                         if len(new_array) == 0 and random.random() >= 1.0 - skip_no_bb_chance:
@@ -186,28 +190,30 @@ class vott_loader:
                             region_label = np.append(region_label, NULL_LABEL, axis = 1)
                             region_bb = np.append(region_bb, NULL_BB, axis = 1)
                             
-                        if batch_image.shape[0] >= batch_size:
-                            batch_image = np.ndarray([0, anc.crop_size[1], anc.crop_size[0], self.color_channel], dtype = np.int16)
-                            batch_label = np.ndarray([0, self.regions, 1], dtype = np.int16)
-                            batch_bbox = np.ndarray([0, self.regions, 4], dtype = np.float16)
-
                         np_aug_im = np.array([aug_im], dtype = np.int16)
                         np_region_label = region_label[:, :self.regions, :]
                         np_region_bb = region_bb[:, :self.regions, :] / [h, w, h, w]
+                        del aug_im, aug_bb
                         
                         if np_aug_im.ndim == 4 and  np_region_label.ndim == 3 and np_region_bb.ndim == 3:
                             if np_aug_im.shape[1:] == (anc.crop_size[1], anc.crop_size[0], self.color_channel) and np_region_label.shape[1:] == (self.regions, 1) and np_region_bb.shape[1:] == (self.regions, 4):
-                                batch_image = np.append(batch_image, np_aug_im, axis = 0)
-                                batch_label = np.append(batch_label, np_region_label, axis = 0)
-                                batch_bbox = np.append(batch_bbox, np_region_bb, axis = 0)
 
-                                if batch_image.shape[0] >= batch_size:
-                                    batch_image = np.where(batch_image > 255.0, 255.0, batch_image)
-                                    batch_image = np.where(batch_image < 0.0, 0.0, batch_image)
-                                    if normalization:
-                                        batch_image = batch_image / np.max(batch_image)
-                                    batch_bbox = np.where(batch_bbox > 1.0, 1.0, batch_bbox)
-                                    batch_bbox = np.where(batch_bbox < 0.0, 0.0, batch_bbox)
+                                np_aug_im = np.where(np_aug_im > 255.0, 255.0, np_aug_im)
+                                np_aug_im = np.where(np_aug_im < 0.0, 0.0, np_aug_im)
+                                np_region_bb = np.where(np_region_bb > 1.0, 1.0, np_region_bb)
+                                np_region_bb = np.where(np_region_bb < 0.0, 0.0, np_region_bb)
+
+                                if normalization:
+                                    np_aug_im = np_aug_im / np.max(np_aug_im)
+                                batch_image[BATCH_NO] = np_aug_im
+                                batch_label[BATCH_NO] = np_region_label
+                                batch_bbox[BATCH_NO] = np_region_bb
+                                del np_aug_im, np_region_label, np_region_bb
+
+                                BATCH_NO += 1
+
+                                if BATCH_NO >= batch_size:
+                                    BATCH_NO = 0
                                     yield batch_image.astype(np.float16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
                         
 
@@ -281,20 +287,40 @@ class anchor:
                 box.append([x1, y1, x2, y2]) 
         return box
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, random_drop = 0.0):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, skip_no_bb_chance = 0.7, random_drop = 0.0):
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
         crop_iter = iter(zip(self.boxes, self.box_indices))
+        BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3
+        if BB_NDIMS_CHECK:
+            bb_set_X = bounding_box_with_class[:,:,2] - bounding_box_with_class[:,:,0]
+            bb_set_Y = bounding_box_with_class[:,:,3] - bounding_box_with_class[:,:,1]
+        else:
+            bb_set_X = False
+            bb_set_Y = False
+            
         for index, box_value in enumerate(crop_iter):
             if random.random() > 1.0 - random_drop:
                 continue
             box, box_indice = box_value
             box = np.expand_dims(box, 0)
             box_indice = np.expand_dims(box_indice, 0)
+
+            #2024-02-24 bb size check before image cut
+            h1, w1, h2, w2 = (box * [h, w, h, w])[0]
+            cutout_height = h2 - h1
+            cutout_width = w2 - w1
+            if BB_NDIMS_CHECK:
+                if not np.any(bb_set_X / cutout_width > MINIMUM_PERC) or not np.any(bb_set_Y / cutout_height > MINIMUM_PERC):
+                    if random.random() > 1.0 - skip_no_bb_chance:
+                        continue
+                
             image_outputs = tf.image.crop_and_resize(image, box, box_indice, self.crop_size)
             if image_outputs.ndim != 4:
+                del image_outputs
                 continue
+            
             for image_output in image_outputs:
                 box_tf = self.boxes[index]
                 bounding_box = np.ndarray([1,0, 5])
@@ -919,7 +945,7 @@ def test_predict():
 def test(normalization = False):
     a = anchor()
     g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/type2 train/vott-json-export/TAPING-PIN-PROBE-type2-train-export.json',])
-    b = g.batch(normalization = normalization)
+    b = g.batch(batch_size = 36, normalization = normalization)
     sanity_check(b)
     return b
 
