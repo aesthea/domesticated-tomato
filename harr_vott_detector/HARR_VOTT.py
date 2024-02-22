@@ -203,6 +203,9 @@ class vott_loader:
                                 np_region_bb = np.where(np_region_bb > 1.0, 1.0, np_region_bb)
                                 np_region_bb = np.where(np_region_bb < 0.0, 0.0, np_region_bb)
 
+                                if np.any(np.isnan(np_aug_im)) or np.any(np.isnan(np_region_label)) or np.any(np.isnan(np_region_bb)) or np.max(np_aug_im) <= 0.0:
+                                    continue
+
                                 if normalization:
                                     np_aug_im = np_aug_im / np.max(np_aug_im)
                                 batch_image[BATCH_NO] = np_aug_im
