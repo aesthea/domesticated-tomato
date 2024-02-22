@@ -49,10 +49,10 @@ class vott_loader:
         #https://stackoverflow.com/questions/60926460/can-dictionary-data-split-into-test-and-training-set-randomly
         s = pd.Series(self.ASSETS)
         if train_split < 1.0 and len(s) > 0:
-            self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = 0.95 - train_split)]
+            self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = 1.0 - train_split)]
         else:
-            self.training_data = s.to_dict()
-            self.validation_data = s.to_dict()
+            self.training_data = s.sample(frac=1).to_dict()
+            self.validation_data = s.sample(frac=1).to_dict()
 
     def loader(self, paths):
         TAGS = []
@@ -218,7 +218,7 @@ class vott_loader:
                                 if BATCH_NO >= batch_size:
                                     BATCH_NO = 0
                                     yield batch_image.astype(np.float16), (batch_label.astype(np.int16), batch_bbox.astype(np.float16))
-                        
+                                    
 
 class anchor:
     def __init__(self, anchor_level = 2, crop_size = (128, 128)):
@@ -429,11 +429,11 @@ def sanity_check(gen):
     colors = [[255,0,0],]
     imbb = tf.image.draw_bounding_boxes(x, z, colors)
     items = imbb.shape[0]
-    h = int(math.ceil(math.sqrt(items)))
     w = int(math.ceil(math.sqrt(items)))
+    h = math.ceil(items / w)
     fig, ax = plt.subplots(h , w)
     for i, im in enumerate(imbb):
-        row = i // h
+        row = i // w
         col = i % w
         img = tf.keras.preprocessing.image.array_to_img(im)
         title = ", ".join([str(n[0]) for n in y[i].tolist()])
@@ -872,11 +872,11 @@ class load_model:
         colors = [[255,0,0],]
         imbb = tf.image.draw_bounding_boxes(x, z, colors)
         items = imbb.shape[0]
-        h = int(math.ceil(math.sqrt(items)))
         w = int(math.ceil(math.sqrt(items)))
+        h = math.ceil(items / w)
         fig, ax = plt.subplots(h , w)
         for i, im in enumerate(imbb):
-            row = i // h
+            row = i // w
             col = i % w
             img = tf.keras.preprocessing.image.array_to_img(im)
             title = ", ".join([self.TAGS_FORMAT[n[0]]['name'] if n[0] in self.TAGS_FORMAT else str(n[0]) for n in y[i].tolist()])
@@ -941,10 +941,10 @@ def test_predict():
     model.load()
     return model
 
-def test(normalization = False):
+def test(normalization = False, batch_size = 36):
     a = anchor()
     g = vott_loader(['C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/type2 train/vott-json-export/TAPING-PIN-PROBE-type2-train-export.json',])
-    b = g.batch(batch_size = 36, normalization = normalization)
+    b = g.batch(batch_size = batch_size, normalization = normalization)
     sanity_check(b)
     return b
 
