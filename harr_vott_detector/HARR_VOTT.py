@@ -296,74 +296,72 @@ class anchor:
         self.prepare_box(self.anchor_level, ratio)
         crop_iter = iter(zip(self.boxes, self.box_indices))
         BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3
+        
         if BB_NDIMS_CHECK:
             bb_set_X = bounding_box_with_class[:,:,2] - bounding_box_with_class[:,:,0]
             bb_set_Y = bounding_box_with_class[:,:,3] - bounding_box_with_class[:,:,1]
         else:
             bb_set_X = False
             bb_set_Y = False
-            
-        for index, box_value in enumerate(crop_iter):
-            if random.random() > 1.0 - random_drop:
-                continue
-            box, box_indice = box_value
-            box = np.expand_dims(box, 0)
-            box_indice = np.expand_dims(box_indice, 0)
+            image_outputs = tf.image.crop_and_resize(image, self.boxes, self.box_indices, self.crop_size)
+            bounding_box = np.ndarray([image_outputs.shape[0],0, 5])
+            yield image_outputs, bounding_box
 
-            #2024-02-24 bb size check before image cut
-            h1, w1, h2, w2 = (box * [h, w, h, w])[0]
-            cutout_height = h2 - h1
-            cutout_width = w2 - w1
-            if BB_NDIMS_CHECK:
-                if not np.any(bb_set_X / cutout_width > MINIMUM_PERC) or not np.any(bb_set_Y / cutout_height > MINIMUM_PERC):
-                    if random.random() > 1.0 - skip_no_bb_chance:
-                        continue
+        if BB_NDIMS_CHECK: 
+            for index, box_value in enumerate(crop_iter):
+                if random.random() > 1.0 - random_drop:
+                    continue
+                box, box_indice = box_value
+                box = np.expand_dims(box, 0)
+                box_indice = np.expand_dims(box_indice, 0)
+
+                #-- bb size check before image cut --
+                h1, w1, h2, w2 = (box * [h, w, h, w])[0]
+                cutout_height = h2 - h1
+                cutout_width = w2 - w1
+                if BB_NDIMS_CHECK:
+                    if not np.any(bb_set_X / cutout_width > MINIMUM_PERC) or not np.any(bb_set_Y / cutout_height > MINIMUM_PERC):
+                        if random.random() > 1.0 - skip_no_bb_chance:
+                            continue
+                #-- --
+                    
+                image_outputs = tf.image.crop_and_resize(image, box, box_indice, self.crop_size)
+                if image_outputs.ndim != 4:
+                    del image_outputs
+                    continue
                 
-            image_outputs = tf.image.crop_and_resize(image, box, box_indice, self.crop_size)
-            if image_outputs.ndim != 4:
-                del image_outputs
-                continue
-            
-            for image_output in image_outputs:
-                box_tf = self.boxes[index]
-                bounding_box = np.ndarray([1,0, 5])
-                bounding_box_concat = np.ndarray([1,0, 5])
-                x1 = int(box_tf[1] * w)
-                y1 = int(box_tf[0] * h)
-                x2 = int(box_tf[3] * w)
-                y2 = int(box_tf[2] * h)
-                for vott_bbc in bounding_box_with_class[0]:
-                    x3 = int(vott_bbc[0])
-                    y3 = int(vott_bbc[1])
-                    x4 = int(vott_bbc[2])
-                    y4 = int(vott_bbc[3])
-                    boxA = [x1, y1, x2, y2]
-                    boxB = [x3, y3, x4, y4]
-                    tag_class = int(vott_bbc[4])
-                    intersect = bb_intersection(boxA, boxB)
-                    if intersect >= overlap_requirement:
-                        bx1 = max(x1, x3) - x1
-                        by1 = max(y1, y3) - y1
-                        bx2 = min(x2, x4) - x1
-                        by2 = min(y2, y4) - y1
-                        ow = image_output.shape[1]
-                        oh = image_output.shape[0]
-                        if x2 - x1 != 0 and y2 - y1 != 0:
-                            owx21 = (ow / (x2 - x1))
-                            ohy21 = (oh / (y2 - y1))
-                            rx1 = math.floor(bx1 *  owx21)
-                            rx2 = math.floor(bx2 *  owx21)
-                            ry1 = math.floor(by1 *  ohy21)
-                            ry2 = math.floor(by2 *  ohy21)
-                            bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
-                bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
-                image_output = tf.expand_dims(image_output, 0)
-                image_output = image_output.numpy()
-                if image_output.ndim == 4 and bounding_box.ndim == 3:
-                    if image_output.shape[1:] == (self.crop_size[0], self.crop_size[1], c) and bounding_box.shape[2] == 5:
-                        yield image_output, bounding_box
+                for image_output in image_outputs:
+                    box_tf = self.boxes[index]
+                    bounding_box = np.ndarray([1,0, 5])
+                    bounding_box_concat = np.ndarray([1,0, 5])
+                    y1, x1, y2, x2 = box_tf * [h, w, h, w]
+                    for vott_bbc in bounding_box_with_class[0]:
+                        x3, y3, x4, y4, tag_class = vott_bbc
+                        boxA = [x1, y1, x2, y2]
+                        boxB = [x3, y3, x4, y4]
+                        intersect = bb_intersection(boxA, boxB)
+                        if intersect >= overlap_requirement:
+                            bx1 = max(x1, x3) - x1
+                            by1 = max(y1, y3) - y1
+                            bx2 = min(x2, x4) - x1
+                            by2 = min(y2, y4) - y1
+                            ow = image_output.shape[1]
+                            oh = image_output.shape[0]
+                            if x2 - x1 > 0 and y2 - y1 > 0:
+                                owx21 = (ow / (x2 - x1))
+                                ohy21 = (oh / (y2 - y1))
+                                rx1 = math.floor(bx1 *  owx21)
+                                rx2 = math.floor(bx2 *  owx21)
+                                ry1 = math.floor(by1 *  ohy21)
+                                ry2 = math.floor(by2 *  ohy21)
+                                bounding_box_concat = np.append(bounding_box_concat, np.array([[[rx1, ry1, rx2, ry2, tag_class]]], dtype = np.float16), axis = 1)
+                    bounding_box = np.append(bounding_box, bounding_box_concat, axis = 1)
+                    image_output = tf.expand_dims(image_output, 0)
+                    image_output = image_output.numpy()
+                    if image_output.ndim == 4 and bounding_box.ndim == 3:
+                        if image_output.shape[1:] == (self.crop_size[0], self.crop_size[1], c) and bounding_box.shape[2] == 5:
+                            yield image_output, bounding_box
   
-    
 def augment(im, bbwc, seq = None):
     im = im[0]
     bbs = BoundingBoxesOnImage([BoundingBox(x1 = n[0], y1 = n[1], x2 = n[2], y2 = n[3], label = n[4]) for n in bbwc[0]], shape = im.shape[:2])
@@ -540,10 +538,8 @@ class load_model:
 
         image = preprocess_func(image.numpy())
 
-        image_for_predict = np.ndarray([0, self.anchor.crop_size[0], self.anchor.crop_size[1], model_channel], np.float16)
         anchor_gen = self.anchor.make(image)
-        for im, bb in anchor_gen:
-            image_for_predict = np.append(image_for_predict, im, axis = 0)
+        image_for_predict, bb = anchor_gen.__next__()
 
         if debug:
             print("DEBUG 494", image_for_predict.shape)
@@ -953,7 +949,16 @@ def test(normalization = False):
     return b
 
 def debug():
-    fp = "C:/Users/CSIPIG0031/Downloads/T030_image_left_view_0.jpg"
+    fp = "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/simulated/T153_da4d40ed.jpg"
     model = load_ai_by_pik()
     model.load()
     model.predict(fp, debug = True)
+
+def debug01():
+    raw_image = tf.io.read_file('C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/simulated/T153_da4d40ed.jpg')
+    raw_image = tf.image.decode_jpeg(raw_image, channels=3)
+    image = copy.copy(raw_image)
+    image = tf.expand_dims(image,0)
+    raw_image = tf.expand_dims(raw_image, 0)
+    image = preprocess_func(image.numpy())
+    return image
