@@ -336,7 +336,7 @@ class widget:
 
         #FRAME1
         self.label(self.frame1, 600, 25, 0, 0, "Details")
-        self.label_w_input(self.frame1, 200, 400, 25, 1, 0, "AI SAVEFILE", "savefile", bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
+        self.label_w_input(self.frame1, 200, 400, 25, 1, 0, "SAVEFILE", "savefile", bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         self.label_w_input(self.frame1, 200, 400, 25, 2, 0, "SERVE PORT", "port", bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
 
         #FRAME2
