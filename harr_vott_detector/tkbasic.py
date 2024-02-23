@@ -510,7 +510,7 @@ class widget:
         self.label(self.frame3, 600, 25, 7, 0, "", columnspan = 2)
         self.label(self.frame3, 600, 25, 8, 0, "Training parameter", columnspan = 2)
 
-        self.vlabel_w_textarea(self.frame3, 600, 25, 100, 9, 0, "VOTT files", "votts", columnspan = 2, font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
+        self.vlabel_w_textarea(self.frame3, 600, 25, 100, 9, 0, "VOTT Export Files : vott-json-export >> -export.json", "votts", columnspan = 2, font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         self.label_w_input(self.frame3, 100, 500, 25, 10, 0, "Test folder", "testfolder", columnspan = 2, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
 
         self.label_w_input(self.frame3, 100, 200, 25, 11, 0, "Anchor level", "anchor", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
