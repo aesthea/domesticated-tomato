@@ -1,0 +1,36 @@
+1) matplotlib
+https://pypi.org/project/matplotlib/
+
+2) pandas
+https://pypi.org/project/pandas/
+
+3) tensorflow
+https://pypi.org/project/tensorflow/
+
+4) tensorflow_addons
+https://pypi.org/project/tensorflow-addons/
+
+5) keras
+https://pypi.org/project/keras/
+
+6) sklearn
+https://pypi.org/project/scikit-learn/
+
+7) PIL
+https://pypi.org/project/pillow/
+
+8) imgaug
+https://pypi.org/project/imgaug/
+
+9) cv2
+https://pypi.org/project/opencv-python/
+
+10) websockets
+https://pypi.org/project/websockets/
+
+11) asyncio
+https://pypi.org/project/asyncio/
+
+12) numpy
+https://pypi.org/project/numpy/
+
