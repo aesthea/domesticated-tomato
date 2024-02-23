@@ -418,7 +418,7 @@ class widget:
         self.train_button_cpu.pack(fill = BOTH, expand = True)
 
         #FRAME3
-        self.label(self.frame3, 600, 25, 0, 0, "AI parameter (Important!!)", columnspan = 2)
+        self.label(self.frame3, 600, 25, 0, 0, "ML parameter (Important!!)", columnspan = 2)
         self.label(self.frame3, 300, 25, 2, 0, "Backbone")
         self.backbone_frame = Frame(master = self.frame3, width = 300, height = 25)
         self.backbone_frame.grid_propagate(0)
