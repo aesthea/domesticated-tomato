@@ -36,7 +36,8 @@ else:
     PIK = os.path.join(os.path.split(SPEC_LOADER)[0], "tkpik.pik")
     PORT = 8790
 
-    
+if not os.path.isdir("c:/test"):
+    os.mkdir("c:/test")
 
 warnings.filterwarnings("ignore") 
 CONNECTED = set()

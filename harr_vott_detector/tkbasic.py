@@ -10,30 +10,26 @@ from PIL import Image
 from PIL import ImageTk
 from win32api import GetMonitorInfo, MonitorFromPoint
 import math
-import sqlite3
-import pymysql
+#import sqlite3
+#import pymysql
 import threading
-import difflib
+#import difflib
 import pickle
-import re
+#import re
 #import barcode
 #from barcode.writer import ImageWriter
-import csv
-from functools import partial
+#import csv
+#from functools import partial
 import HARR_VOTT
 import tk_socket_server
 
-import asyncio
-import websockets
-
-import multiprocessing
+#import asyncio
+#import websockets
+#import multiprocessing
 
 monitor_info = GetMonitorInfo(MonitorFromPoint((0,0)))
 monitor_area = monitor_info.get("Monitor")
 work_area = monitor_info.get("Work")
-
-if not os.path.isdir("c:/test"):
-    os.mkdir("c:/test")
     
 class ThreadWithReturnValue(threading.Thread):
     #https://stackoverflow.com/questions/6893968/how-to-get-the-return-value-from-a-thread-in-python
@@ -70,7 +66,7 @@ class widget:
         self.machine_mode = ""
         
         self.data = {}
-        self.AI_MODEL = None
+        self.DET_MODEL = None
         self.predict = None
         self.MP_THREAD = False
         self.initialdir = "/"
@@ -798,22 +794,22 @@ class widget:
             else:
                 print(k, "not set")
         if pts == 19:
-            self.AI_MODEL = HARR_VOTT.load_model(self.data["input_size"], self.data["color_channel"], self.data["tags"], self.data["region"], \
+            self.DET_MODEL = HARR_VOTT.load_model(self.data["input_size"], self.data["color_channel"], self.data["tags"], self.data["region"], \
                                                  self.data["dropout"], self.data["fpn_mode"], self.data["backbone"], self.data["votts"], self.data["augment"])
-            self.AI_MODEL.BATCH_SIZE = self.data["batchsize"]
-            self.AI_MODEL.HUBER = self.data["huber"]
-            self.AI_MODEL.TRAIN_SIZE = self.data["trainsize"]
-            self.AI_MODEL.ANCHOR_LEVEL = self.data["anchor"]
-            self.AI_MODEL.NULL_SKIP = self.data["nullskip"]
-            self.AI_MODEL.OVERLAP_REQUIREMENT = self.data["overlap"]
-            self.AI_MODEL.SAVENAME = self.data["savefile"]
-            self.AI_MODEL.NON_MAX_SUPPRESSION_IOU = self.data["non_max_suppression_iou"]
-            self.AI_MODEL.NORMALIZATION = self.data["normalization"]
-            self.AI_MODEL.RANDOM_DROP = self.data["random_drop"]
-            self.AI_MODEL.initialize()
+            self.DET_MODEL.BATCH_SIZE = self.data["batchsize"]
+            self.DET_MODEL.HUBER = self.data["huber"]
+            self.DET_MODEL.TRAIN_SIZE = self.data["trainsize"]
+            self.DET_MODEL.ANCHOR_LEVEL = self.data["anchor"]
+            self.DET_MODEL.NULL_SKIP = self.data["nullskip"]
+            self.DET_MODEL.OVERLAP_REQUIREMENT = self.data["overlap"]
+            self.DET_MODEL.SAVENAME = self.data["savefile"]
+            self.DET_MODEL.NON_MAX_SUPPRESSION_IOU = self.data["non_max_suppression_iou"]
+            self.DET_MODEL.NORMALIZATION = self.data["normalization"]
+            self.DET_MODEL.RANDOM_DROP = self.data["random_drop"]
+            self.DET_MODEL.initialize()
             
         else:
-            self.AI_MODEL = None
+            self.DET_MODEL = None
 
     
     def value_type(self, el, t = str):
@@ -836,8 +832,8 @@ class widget:
         if "votts" in self.data:
             if self.data["votts"] != votts:
                 reload_AI = True
-        if self.AI_MODEL:
-            if self.AI_MODEL.VOTT_PATHS != votts:
+        if self.DET_MODEL:
+            if self.DET_MODEL.VOTT_PATHS != votts:
                 reload_AI = True
         self.data["votts"] = votts
         
@@ -873,32 +869,32 @@ class widget:
         elif self.data["random_drop"] != self.value_type(self.inputs["random_drop"], float):
             reload_AI = True
 
-        if self.AI_MODEL:
-            if self.AI_MODEL.BACKBONE != self.value_type(self.backbone, str):
+        if self.DET_MODEL:
+            if self.DET_MODEL.BACKBONE != self.value_type(self.backbone, str):
                 reload_AI = True
-            elif self.AI_MODEL.FPN_MODE != self.value_type(self.fpn_mode, int):
+            elif self.DET_MODEL.FPN_MODE != self.value_type(self.fpn_mode, int):
                 reload_AI = True
-            elif self.AI_MODEL.IMAGE_SIZE != self.value_type(self.input_size, int):
+            elif self.DET_MODEL.IMAGE_SIZE != self.value_type(self.input_size, int):
                 reload_AI = True
-            elif self.AI_MODEL.COLOR_CHANNEL != self.value_type(self.color_channel, int):
+            elif self.DET_MODEL.COLOR_CHANNEL != self.value_type(self.color_channel, int):
                 reload_AI = True
-            elif self.AI_MODEL.REGIONS != self.value_type(self.inputs["region"], int):
+            elif self.DET_MODEL.REGIONS != self.value_type(self.inputs["region"], int):
                 reload_AI = True
-            elif self.AI_MODEL.CLASSIFICATION_TAGS != self.value_type(self.inputs["tags"], int):
+            elif self.DET_MODEL.CLASSIFICATION_TAGS != self.value_type(self.inputs["tags"], int):
                 reload_AI = True
-            elif self.AI_MODEL.DROPOUT != self.value_type(self.inputs["dropout"], float):
+            elif self.DET_MODEL.DROPOUT != self.value_type(self.inputs["dropout"], float):
                 reload_AI = True
-            elif self.AI_MODEL.ANCHOR_LEVEL != self.value_type(self.inputs["anchor"], int):
+            elif self.DET_MODEL.ANCHOR_LEVEL != self.value_type(self.inputs["anchor"], int):
                 reload_AI = True
-            elif self.AI_MODEL.BATCH_SIZE != self.value_type(self.inputs["batchsize"], int):
+            elif self.DET_MODEL.BATCH_SIZE != self.value_type(self.inputs["batchsize"], int):
                 reload_AI = True
-            elif self.AI_MODEL.AUGMENT != self.value_type(self.inputs["augment"], int):
+            elif self.DET_MODEL.AUGMENT != self.value_type(self.inputs["augment"], int):
                 reload_AI = True
-            elif self.AI_MODEL.NON_MAX_SUPPRESSION_IOU != self.value_type(self.inputs["non_max_suppression_iou"], float):
+            elif self.DET_MODEL.NON_MAX_SUPPRESSION_IOU != self.value_type(self.inputs["non_max_suppression_iou"], float):
                 reload_AI = True
-            elif self.AI_MODEL.NORMALIZATION != self.value_type(self.normalization, bool):
+            elif self.DET_MODEL.NORMALIZATION != self.value_type(self.normalization, bool):
                 reload_AI = True
-            elif self.AI_MODEL.RANDOM_DROP != self.value_type(self.inputs["random_drop"], float):
+            elif self.DET_MODEL.RANDOM_DROP != self.value_type(self.inputs["random_drop"], float):
                 reload_AI = True
                 
         self.data["backbone"] = self.value_type(self.backbone, str)
@@ -958,7 +954,7 @@ class widget:
             if not float(self.data[k]) > 0:
                 print("no value", k, self.data[k])
                 return False
-        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
             print("PLEASE LOAD WEIGHT")
@@ -968,42 +964,42 @@ class widget:
         else:
             no_validation = False
         if cpu_training:
-            v = self.AI_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
+            v = self.DET_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
         else:
-            v = self.AI_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
+            v = self.DET_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
         
     def save(self):
-        if not self.AI_MODEL:
+        if not self.DET_MODEL:
             print("CANNOT SAVE, NO AI MODEL")
             return False
         print("widget.save")
-        self.AI_MODEL.save(self.value_type(self.inputs["savefile"], str))
+        self.DET_MODEL.save(self.value_type(self.inputs["savefile"], str))
         
 
     def load(self):
         print("widget.load")
-        #if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+        #if not self.DET_MODEL or self.RELOAD_AI_FLAG:
         self.load_AI()
         self.RELOAD_AI_FLAG = False
-        self.AI_MODEL.load(self.value_type(self.inputs["savefile"], str))
+        self.DET_MODEL.load(self.value_type(self.inputs["savefile"], str))
         
 
     def trial(self):
         self.update()
         if os.path.isdir(self.data["testfolder"]):
             print("widget.trial")
-            self.AI_MODEL.trial(self.data["testfolder"])
+            self.DET_MODEL.trial(self.data["testfolder"])
         
     def generator_check(self):
         self.update()
-        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
-        self.AI_MODEL.generator_check()
+        self.DET_MODEL.generator_check()
 
     def predict_image(self):
         self.update()
-        if not self.AI_MODEL or self.RELOAD_AI_FLAG:
+        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
             self.load_AI()
             self.RELOAD_AI_FLAG = False
         filename = filedialog.askopenfilename(initialdir = self.initialdir, title = "Select a File", \
@@ -1011,7 +1007,7 @@ class widget:
                                                            ("all files", "*.*")))
         #FILE = simpledialog.askstring(title="Predict", prompt="File path:")
         if os.path.isfile(filename):
-            self.AI_MODEL.predict(filename)
+            self.DET_MODEL.predict(filename)
             self.initialdir = os.path.split(filename)[0]
         
         

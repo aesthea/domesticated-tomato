@@ -25,7 +25,7 @@ import urllib
 try:
     import efficient_det as det
 except Exception as e:
-    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "MODEL.py")
+    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
     spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
 
     spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
