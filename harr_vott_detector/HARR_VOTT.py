@@ -450,7 +450,7 @@ def sanity_check(gen):
     plt.close()
 
 
-def load_ai_by_pik(f = "tkpik.pik"):
+def load_model_by_pik(f = "tkpik.pik"):
     if not os.path.isfile(f):
         print("no pik")
         return False
@@ -700,7 +700,7 @@ class load_model:
         g = gl(y_true, y_pred)
         return g + f * self.HUBER
 
-    def train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False):
+    def train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False, save_on_end = False):
         if not len(self.vott_available_paths):
             print("NO VOTT PATHS AVAILABLE")
             return False
@@ -739,12 +739,15 @@ class load_model:
             history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2)
         else:
             history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
+        if save_on_end:
+            self.save()
         self.show_training_result(history)
         with open(self.SAVENAME + ".pik", "wb") as fio:
             pickle.dump(gen.TAGS_FORMAT, fio)
         return True
 
-    def cpu_train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False):
+    def cpu_train(self, EPOCHS = 200, STEPS = 50, LR = 0.001, early_stopping = False, no_validation = False, save_on_end = False):
+        print("Training with CPU")
         if not len(self.vott_available_paths):
             print("NO VOTT PATHS AVAILABLE")
             return False
@@ -784,6 +787,8 @@ class load_model:
                 history = self.model.fit(train_data, epochs = EPOCHS, steps_per_epoch = STEPS, verbose = 2)
             else:
                 history = self.model.fit(train_data, validation_data = validation_data, epochs = EPOCHS, steps_per_epoch = STEPS, validation_steps = int(STEPS * 0.3), verbose = 2)
+            if save_on_end:
+                self.save()    
             self.show_training_result(history)
             with open(self.SAVENAME + ".pik", "wb") as fio:
                 pickle.dump(gen.TAGS_FORMAT, fio)
@@ -893,7 +898,6 @@ class load_model:
         plt.close()
 
     def folder_check(self, folder):
-        #images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") , os.listdir(folder))
         images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") and os.path.isfile(os.path.join(folder, f)), os.listdir(folder))
         images = [n for n in images]
         max_len = 36
@@ -927,7 +931,7 @@ def from_hex(h):
     return [int(s[:2],16), int(s[2:4], 16), int(s[4:], 16)]
 
 def test_train():
-    model = load_ai_by_pik()
+    model = load_model_by_pik()
     model.VOTT_PATHS = ['C:/PROJECT/HARR_VOTT/vott-json-export/OCR-export.json',]
     model.initialize()
     model.load()
@@ -935,7 +939,7 @@ def test_train():
     return model
 
 def test_predict():
-    model = load_ai_by_pik()
+    model = load_model_by_pik()
     model.VOTT_PATHS = ['C:/PROJECT/HARR_VOTT/vott-json-export/OCR-export.json',]
     model.initialize()
     model.load()
@@ -950,7 +954,7 @@ def test(normalization = False, batch_size = 36):
 
 def debug():
     fp = "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/simulated/T153_da4d40ed.jpg"
-    model = load_ai_by_pik()
+    model = load_model_by_pik()
     model.load()
     model.predict(fp, debug = True)
 

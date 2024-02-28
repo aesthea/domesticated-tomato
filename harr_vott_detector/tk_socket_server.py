@@ -187,7 +187,7 @@ def run(PORT = PORT):
     if os.path.isfile(PIK):
         with open(PIK, "rb") as fio:
             data = pickle.load(fio)
-        model = HARR_VOTT.load_ai_by_pik(PIK)
+        model = HARR_VOTT.load_model_by_pik(PIK)
         model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
         predict = model.predict
         load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         if os.path.isfile(PIK):
             with open(PIK, "rb") as fio:
                 data = pickle.load(fio)
-            model = HARR_VOTT.load_ai_by_pik(PIK)
+            model = HARR_VOTT.load_model_by_pik(PIK)
             model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
             predict = model.predict
             load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))

@@ -70,7 +70,24 @@ class widget:
         self.predict = None
         self.MP_THREAD = False
         self.initialdir = "/"
-        self.RELOAD_AI_FLAG = False
+        self.RELOAD_ML_FLAG = False
+
+        self.augment_01_var = BooleanVar(self.root)
+        self.augment_01_var.set(True)
+        self.augment_02_var = BooleanVar(self.root)
+        self.augment_02_var.set(True)
+        self.augment_03_var = BooleanVar(self.root)
+        self.augment_03_var.set(True)
+        self.augment_04_var = BooleanVar(self.root)
+        self.augment_04_var.set(True)
+        self.augment_05_var = BooleanVar(self.root)
+        self.augment_05_var.set(True)
+        self.augment_06_var = BooleanVar(self.root)
+        self.augment_06_var.set(True)        
+        self.augment_07_var = BooleanVar(self.root)
+        self.augment_07_var.set(True)
+        self.augment_08_var = BooleanVar(self.root)
+        self.augment_08_var.set(True)
 
     def worker(self, func, args):
         if not self.THREAD:
@@ -78,7 +95,7 @@ class widget:
         else:
             return None
 
-    def serve_ai_button(self):
+    def serve_model_button(self):
         tk_socket_server.run()
 
     def numerical_set(self, input_name, value, integer = False):
@@ -317,7 +334,10 @@ class widget:
         self.frame1.pack_propagate(0)
         self.frame1.grid(column = 0, row = 0)
 
-    def build(self):        
+    def build(self):
+
+        self.inputs["augment"] = StringVar(self.root)
+        
         self.frame1 = Frame(master = self.frame_main, bg = "red", width = 600, height = 100)
         self.frame1.grid_propagate(0)
         self.frame1.pack_propagate(0)
@@ -332,7 +352,6 @@ class widget:
         self.frame3.grid_propagate(0)
         self.frame3.pack_propagate(0)
         self.frame3.grid(column = 0, row = 1)
-
 
         #FRAME1
         self.label(self.frame1, 600, 25, 0, 0, "Details")
@@ -375,7 +394,7 @@ class widget:
         self.b5_frame.grid_propagate(0)
         self.b5_frame.pack_propagate(0)
         self.b5_frame.grid(column = 0, row = 5)
-        self.serve_button = Button(master = self.b5_frame, text = "SERVE", relief="groove", font = self.bold_font, bd = 2, command = self.serve_ai_button)
+        self.serve_button = Button(master = self.b5_frame, text = "SERVE", relief="groove", font = self.bold_font, bd = 2, command = self.serve_model_button)
         self.serve_button.pack(fill = BOTH, expand = True)
 
         self.b6_frame = Frame(master = self.frame2, width = 200, height = 50)
@@ -414,8 +433,26 @@ class widget:
         self.b11_frame.grid_propagate(0)
         self.b11_frame.pack_propagate(0)
         self.b11_frame.grid(column = 0, row = 11)
-        self.train_button_cpu = Button(master = self.b11_frame, text = "TRAIN (early stopping)", relief="groove", font = self.bold_font, bd = 2, command = lambda : self.train(early_stopping = True, cpu_training = False))
-        self.train_button_cpu.pack(fill = BOTH, expand = True)
+        self.train_button_early_stopping = Button(master = self.b11_frame, text = "TRAIN (early stopping)", relief="groove", font = self.bold_font, bd = 2, command = lambda : self.train(early_stopping = True, cpu_training = False))
+        self.train_button_early_stopping.pack(fill = BOTH, expand = True)
+
+        self.b12_frame = Frame(master = self.frame2, width = 200, height = 25)
+        self.b12_frame.grid_propagate(0)
+        self.b12_frame.pack_propagate(0)
+        self.b12_frame.grid(column = 0, row = 12)
+
+        self.b13_frame = Frame(master = self.frame2, width = 200, height = 25)
+        self.b13_frame.grid_propagate(0)
+        self.b13_frame.pack_propagate(0)
+        self.b13_frame.grid(column = 0, row = 13)
+        
+##        self.b14_frame = Frame(master = self.frame2, width = 200, height = 25)
+##        self.b14_frame.grid_propagate(0)
+##        self.b14_frame.pack_propagate(0)
+##        self.b14_frame.grid(column = 0, row = 14)
+##        self.top_activate = Button(master = self.b14_frame, text = "TOP", relief="groove", font = self.bold_font, bd = 2, command = self.top_augment)
+##        self.top_activate.pack(fill = BOTH, expand = True)
+        
 
         #FRAME3
         self.label(self.frame3, 600, 25, 0, 0, "ML parameter (Important!!)", columnspan = 2)
@@ -529,8 +566,14 @@ class widget:
         self.label_w_input(self.frame3, 100, 200, 25, 15, 1, "Image Skip", "random_drop", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         
         self.label_w_input(self.frame3, 100, 200, 25, 16, 0, "NMS_IoU", "non_max_suppression_iou", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
-        self.label_w_input(self.frame3, 100, 200, 25, 16, 1, "Augment", "augment", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
-        
+        #self.label_w_input(self.frame3, 100, 200, 25, 16, 1, "Augment", "augment", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
+
+        self.augment_button_frame = Frame(master = self.frame3, width = 300, height = 25)
+        self.augment_button_frame.grid_propagate(0)
+        self.augment_button_frame.pack_propagate(0)
+        self.augment_button_frame.grid(column = 1, row = 16)
+        self.top_augment_activate = Button(master = self.augment_button_frame, text = "Augment", relief="groove", font = self.normal_font, bd = 2, command = self.top_augment)
+        self.top_augment_activate.pack(fill = BOTH, expand = True)       
 
 
     def load_pik(self):
@@ -773,7 +816,7 @@ class widget:
         self.update()
         
             
-    def load_AI(self):
+    def load_MODEL(self):
         self.load_pik()
         pts = 0
         if "votts" in self.data:
@@ -826,76 +869,112 @@ class widget:
         return None
 
     def update(self, event = None):
-        reload_AI = False
+        reload_ML = False
+        
+        augment = self.value_type(self.inputs["augment"], int)
+        self.top_augment_activate.config(text = "Augment : %s" % augment)
+        b = '0000000000' + bin(augment)[2:]
+        if int(b[-1]) == 1:
+            self.augment_08_var.set(True)
+        else:
+            self.augment_08_var.set(False)
+        if int(b[-2]) == 1:
+            self.augment_07_var.set(True)
+        else:
+            self.augment_07_var.set(False)
+        if int(b[-3]) == 1:
+            self.augment_06_var.set(True)
+        else:
+            self.augment_06_var.set(False)
+        if int(b[-4]) == 1:
+            self.augment_05_var.set(True)
+        else:
+            self.augment_05_var.set(False)
+        if int(b[-5]) == 1:
+            self.augment_04_var.set(True)
+        else:
+            self.augment_04_var.set(False)
+        if int(b[-6]) == 1:
+            self.augment_03_var.set(True)
+        else:
+            self.augment_03_var.set(False)
+        if int(b[-7]) == 1:
+            self.augment_02_var.set(True)
+        else:
+            self.augment_02_var.set(False)
+        if int(b[-8]) == 1:
+            self.augment_01_var.set(True)
+        else:
+            self.augment_01_var.set(False)
         
         votts = [n for n in self.objects["votts"]["input"].get("1.0",END).split("\n") if os.path.isfile(n)]
         if "votts" in self.data:
             if self.data["votts"] != votts:
-                reload_AI = True
+                reload_ML = True
         if self.DET_MODEL:
             if self.DET_MODEL.VOTT_PATHS != votts:
-                reload_AI = True
+                reload_ML = True
         self.data["votts"] = votts
         
         self.objects["votts"]["input"].delete("1.0", END)
         self.objects["votts"]["input"].insert("1.0", "\n".join(votts))
 
         if self.data["backbone"] != self.value_type(self.backbone, str):
-            reload_AI = True                
+            reload_ML = True                
         elif self.data["fpn_mode"] != self.value_type(self.fpn_mode, int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["input_size"] != self.value_type(self.input_size, int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["color_channel"] != self.value_type(self.color_channel, int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["region"] != self.value_type(self.inputs["region"], int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["tags"] != self.value_type(self.inputs["tags"], int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["dropout"] != self.value_type(self.inputs["dropout"], float):
-            reload_AI = True
+            reload_ML = True
         elif self.data["anchor"] != self.value_type(self.inputs["anchor"], int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["batchsize"] != self.value_type(self.inputs["batchsize"], int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["augment"] != self.value_type(self.inputs["augment"], int):
-            reload_AI = True
+            reload_ML = True
         elif self.data["non_max_suppression_iou"] != self.value_type(self.inputs["non_max_suppression_iou"], float):
-            reload_AI = True
+            reload_ML = True
         elif self.data["lstm"] != self.value_type(self.lstm, bool):
-            reload_AI = True
+            reload_ML = True
         elif self.data["normalization"] != self.value_type(self.normalization, bool):
-            reload_AI = True
+            reload_ML = True
         elif self.data["random_drop"] != self.value_type(self.inputs["random_drop"], float):
-            reload_AI = True
+            reload_ML = True
 
         if self.DET_MODEL:
             if self.DET_MODEL.BACKBONE != self.value_type(self.backbone, str):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.FPN_MODE != self.value_type(self.fpn_mode, int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.IMAGE_SIZE != self.value_type(self.input_size, int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.COLOR_CHANNEL != self.value_type(self.color_channel, int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.REGIONS != self.value_type(self.inputs["region"], int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.CLASSIFICATION_TAGS != self.value_type(self.inputs["tags"], int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.DROPOUT != self.value_type(self.inputs["dropout"], float):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.ANCHOR_LEVEL != self.value_type(self.inputs["anchor"], int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.BATCH_SIZE != self.value_type(self.inputs["batchsize"], int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.AUGMENT != self.value_type(self.inputs["augment"], int):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.NON_MAX_SUPPRESSION_IOU != self.value_type(self.inputs["non_max_suppression_iou"], float):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.NORMALIZATION != self.value_type(self.normalization, bool):
-                reload_AI = True
+                reload_ML = True
             elif self.DET_MODEL.RANDOM_DROP != self.value_type(self.inputs["random_drop"], float):
-                reload_AI = True
+                reload_ML = True
                 
         self.data["backbone"] = self.value_type(self.backbone, str)
         self.data["fpn_mode"] = self.value_type(self.fpn_mode, int)
@@ -929,9 +1008,9 @@ class widget:
             if len(self.data["savefile"]) > 3:
                 with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
                     pickle.dump(self.data, fio)
-        self.RELOAD_AI_FLAG = reload_AI
+        self.RELOAD_ML_FLAG = reload_ML
 
-    def train(self, early_stopping = False, cpu_training = False):
+    def train(self, early_stopping = False, cpu_training = False, save_on_end = False):
         self.update()
         EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
         if EPOCH:
@@ -943,7 +1022,7 @@ class widget:
                 return False
         else:
             return False
-        print(EPOCH)
+        print("TRAINING : ", EPOCH)
         for k in ("learning_rate", "steps"):
             if k not in self.data:
                 print("no data", k)
@@ -954,9 +1033,9 @@ class widget:
             if not float(self.data[k]) > 0:
                 print("no value", k, self.data[k])
                 return False
-        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
-            self.load_AI()
-            self.RELOAD_AI_FLAG = False
+        if not self.DET_MODEL or self.RELOAD_ML_FLAG:
+            self.load_MODEL()
+            self.RELOAD_ML_FLAG = False
             print("PLEASE LOAD WEIGHT")
             return False
         if self.data["trainsize"] >= 1.0:
@@ -964,13 +1043,13 @@ class widget:
         else:
             no_validation = False
         if cpu_training:
-            v = self.DET_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
+            v = self.DET_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
         else:
-            v = self.DET_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation)
+            v = self.DET_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
         
     def save(self):
         if not self.DET_MODEL:
-            print("CANNOT SAVE, NO AI MODEL")
+            print("CANNOT SAVE, NO MODEL")
             return False
         print("widget.save")
         self.DET_MODEL.save(self.value_type(self.inputs["savefile"], str))
@@ -978,11 +1057,9 @@ class widget:
 
     def load(self):
         print("widget.load")
-        #if not self.DET_MODEL or self.RELOAD_AI_FLAG:
-        self.load_AI()
-        self.RELOAD_AI_FLAG = False
+        self.load_MODEL()
+        self.RELOAD_ML_FLAG = False
         self.DET_MODEL.load(self.value_type(self.inputs["savefile"], str))
-        
 
     def trial(self):
         self.update()
@@ -992,64 +1069,101 @@ class widget:
         
     def generator_check(self):
         self.update()
-        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
-            self.load_AI()
-            self.RELOAD_AI_FLAG = False
+        if not self.DET_MODEL or self.RELOAD_ML_FLAG:
+            self.load_MODEL()
+            self.RELOAD_ML_FLAG = False
         self.DET_MODEL.generator_check()
 
     def predict_image(self):
         self.update()
-        if not self.DET_MODEL or self.RELOAD_AI_FLAG:
-            self.load_AI()
-            self.RELOAD_AI_FLAG = False
+        if not self.DET_MODEL or self.RELOAD_ML_FLAG:
+            self.load_MODEL()
+            self.RELOAD_ML_FLAG = False
         filename = filedialog.askopenfilename(initialdir = self.initialdir, title = "Select a File", \
                                               filetypes = (("image files", ("*.bmp*", "*.jpg*", "*.png*")), \
                                                            ("all files", "*.*")))
-        #FILE = simpledialog.askstring(title="Predict", prompt="File path:")
         if os.path.isfile(filename):
             self.DET_MODEL.predict(filename)
             self.initialdir = os.path.split(filename)[0]
         
         
-    def top(self):
+    def top_augment(self):
+        self.update()            
         self.toplevel_top = Toplevel(self.root)
-        self.toplevel_a = Frame(master = self.toplevel_top, bg = "blue", width = 480, height = 180)
+        self.toplevel_a = Frame(master = self.toplevel_top, width = 480, height = 240)
         self.toplevel_a.grid_propagate(0)
         self.toplevel_a.pack_propagate(0)
         self.toplevel_a.grid(column = 0, row = 0)
-        self.toplevel_b = Frame(master = self.toplevel_top, bg = "red", width = 480, height = 180)
+        self.toplevel_b = Frame(master = self.toplevel_top, bg = "red", width = 480, height = 25)
         self.toplevel_b.grid_propagate(0)
         self.toplevel_b.pack_propagate(0)
         self.toplevel_b.grid(column = 0, row = 1)
+        
+        self.augment_01 = Checkbutton(self.toplevel_a, text='AverageBlur', variable = self.augment_01_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_01.grid(column = 0, row = 0, sticky = W)
+        self.augment_02 = Checkbutton(self.toplevel_a, text='AdditiveGaussianNoise', variable = self.augment_02_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_02.grid(column = 0, row = 1, sticky = W)
+        self.augment_03 = Checkbutton(self.toplevel_a, text='Affine.translate_percent', variable = self.augment_03_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_03.grid(column = 0, row = 2, sticky = W)
+        self.augment_04 = Checkbutton(self.toplevel_a, text='Affine.scale', variable = self.augment_04_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_04.grid(column = 0, row = 3, sticky = W)
+        self.augment_05 = Checkbutton(self.toplevel_a, text='Affine.rotate', variable = self.augment_05_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_05.grid(column = 0, row = 4, sticky = W)
+        self.augment_06 = Checkbutton(self.toplevel_a, text='Affine.shear', variable = self.augment_06_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_06.grid(column = 0, row = 5, sticky = W)
+        self.augment_07 = Checkbutton(self.toplevel_a, text='Fliplr', variable = self.augment_07_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_07.grid(column = 0, row = 6, sticky = W)
+        self.augment_08 = Checkbutton(self.toplevel_a, text='Flipud', variable = self.augment_08_var, onvalue=True, offvalue=False, font = self.small_font, command = self.augment_change)
+        self.augment_08.grid(column = 0, row = 7, sticky = W)
+        
+    def augment_change(self):
+        b = '0000000000'
+        if self.augment_01_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_02_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_03_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_04_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_05_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_06_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_07_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
+        if self.augment_08_var.get() == True:
+            b += '1'
+        else:
+            b += '0'
 
-        self.toplevel_a1 = Frame(master = self.toplevel_a, bg = "yellow", width = 160, height = 180)
-        self.toplevel_a1.grid_propagate(0)
-        self.toplevel_a1.pack_propagate(0)
-        self.toplevel_a1.grid(column = 0, row = 0)
-        self.dst_button = Button(master = self.toplevel_a1, text = "DST", relief="groove", font = self.bold_font, bd = 5, command = self.DST_mode)
-        self.dst_button.pack(fill = BOTH, expand = True)
-        self.toplevel_a2 = Frame(master = self.toplevel_a, bg = "green", width = 160, height = 180)
-        self.toplevel_a2.grid_propagate(0)
-        self.toplevel_a2.pack_propagate(0)
-        self.toplevel_a2.grid(column = 1, row = 0)
-        self.humo6_button = Button(master = self.toplevel_a2, text = "HUMO6", relief="groove", font = self.bold_font, bd = 5, command = self.HUMO6_mode)
-        self.humo6_button.pack(fill = BOTH, expand = True)
-        self.toplevel_a3 = Frame(master = self.toplevel_a, bg = "cyan", width = 160, height = 180)
-        self.toplevel_a3.grid_propagate(0)
-        self.toplevel_a3.pack_propagate(0)
-        self.toplevel_a3.grid(column = 2, row = 0)
-        self.humo8_button = Button(master = self.toplevel_a3, text = "HUMO8", relief="groove", font = self.bold_font, bd = 5, command = self.HUMO8_mode)
-        self.humo8_button.pack(fill = BOTH, expand = True)
-
+        augment = int(b, 2)
+        self.inputs["augment"].set(augment)
+        self.update()
+        
     def top_assign_apply_button_press(self):
-        self.calculate()
-        self.toplevel_top.destroy()
+        self.update()
+        self.top_augment.destroy()
             
     
 def run():
     w = widget()
     w.build()
-    w.load_AI()
+    w.load_MODEL()
     w.root.mainloop()
 
         
