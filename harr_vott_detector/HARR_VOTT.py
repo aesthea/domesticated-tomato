@@ -49,10 +49,11 @@ class vott_loader:
         #https://stackoverflow.com/questions/60926460/can-dictionary-data-split-into-test-and-training-set-randomly
         s = pd.Series(self.ASSETS)
         if train_split < 1.0 and len(s) > 0:
-            self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = 1.0 - train_split)]
+            self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = None)]
         else:
             self.training_data = s.sample(frac=1).to_dict()
             self.validation_data = s.sample(frac=1).to_dict()
+        print("TRAIN TEST SPLIT SIZE", len(self.training_data), len(self.validation_data))
 
     def loader(self, paths):
         TAGS = []
@@ -168,7 +169,7 @@ class vott_loader:
                             cy = (y1 + y2) // 2                            
                             c = math.sqrt(pow(max(w//2, cx) - min(w//2, cx), 2) + pow(max(h//2, cy) - min(h//2, cy), 2))
                             label = int(bb.label)
-                            if(bb_intersection([x1, y1, x2, y2], [0, 0, w, h]) > overlap_requirement) and (x2 - x1) / w > MINIMUM_PERC and (y2 - y1) / h > MINIMUM_PERC:
+                            if(bb_intersection([x1, y1, x2, y2], [0, 0, w, h]) >= overlap_requirement) and (x2 - x1) / w > MINIMUM_PERC and (y2 - y1) / h > MINIMUM_PERC:
                                 new_array.append([x1, y1, x2, y2, label, c])
 
                         if len(new_array) == 0 and random.random() >= 1.0 - skip_no_bb_chance:
@@ -510,7 +511,7 @@ class load_model:
                 self.tag_format = pickle.load(fio)
         else:
             try:
-                temp_gen = vott_loader(self.vott_available_paths)
+                temp_gen = vott_loader(self.vott_available_paths, train_split = self.TRAIN_SIZE)
                 self.tag_format = temp_gen.TAGS_FORMAT
             except FileNotFoundError as e:
                 print(e)
