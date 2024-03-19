@@ -49,11 +49,13 @@ class vott_loader:
         #https://stackoverflow.com/questions/60926460/can-dictionary-data-split-into-test-and-training-set-randomly
         s = pd.Series(self.ASSETS)
         if train_split < 1.0 and len(s) > 0:
-            self.training_data , self.validation_data  = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = None)]
+            self.training_data, self.validation_data = [i.to_dict() for i in train_test_split(s, train_size = train_split, test_size = None)]
+            print("TRAIN TEST SPLIT SIZE", len(self.training_data), len(self.validation_data))
         else:
-            self.training_data = s.sample(frac=1).to_dict()
-            self.validation_data = s.sample(frac=1).to_dict()
-        print("TRAIN TEST SPLIT SIZE", len(self.training_data), len(self.validation_data))
+            self.training_data, self.validation_data = [i.to_dict() for i in train_test_split(s, train_size = 0.5, test_size = None)]
+            self.training_data.update(self.validation_data)
+            self.validation_data = {}
+            print("TRAIN TEST SPLIT SIZE", len(self.training_data), len(self.validation_data))
 
     def loader(self, paths):
         TAGS = []
