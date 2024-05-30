@@ -113,7 +113,7 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
         p6 = backbone.layers[494].output #494 block6n_add (None, 8, 8, 256)
         p7 = backbone.layers[509].output #509 block6o_add (None, 8, 8, 256)
     elif backbone == "V2B0":
-        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2S(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
+        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2B0(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
         p0 = backbone.layers[0].output #0 input_2 (None, 256, 256, 3)
         p1 = backbone.layers[8].output #8 block1a_project_activation (None, 128, 128, 16)
         p2 = backbone.layers[20].output #20 block2b_add (None, 64, 64, 32)
@@ -123,7 +123,7 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
         p6 = backbone.layers[251].output #251 block6g_add (None, 8, 8, 192)
         p7 = backbone.layers[266].output #266 block6h_add (None, 8, 8, 192)
     elif backbone == "V2B1":
-        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2S(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
+        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2B1(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
         p0 = backbone.layers[0].output #0 input_2 (None, 256, 256, 3)
         p1 = backbone.layers[13].output #13 block1b_add (None, 128, 128, 16)
         p2 = backbone.layers[32].output #32 block2c_add (None, 64, 64, 32)
@@ -133,7 +133,7 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
         p6 = backbone.layers[315].output #315 block6h_add (None, 8, 8, 192)
         p7 = backbone.layers[330].output #330 block6i_add (None, 8, 8, 192)
     elif backbone == "V2B2":
-        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2S(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
+        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2B2(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
         p0 = backbone.layers[0].output #0 input_2 (None, 256, 256, 3)
         p1 = backbone.layers[13].output #13 block1b_add (None, 128, 128, 16)
         p2 = backbone.layers[32].output #32 block2c_add (None, 64, 64, 32)
@@ -143,7 +143,7 @@ def edet(input_size = 256, num_channels = 1, num_classes = 100, items = 3, dropo
         p6 = backbone.layers[330].output #330 block6i_add (None, 8, 8, 208)
         p7 = backbone.layers[345].output #345 block6j_add (None, 8, 8, 208)
     elif backbone == "V2B3":
-        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2S(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
+        backbone = tf.keras.applications.efficientnet_v2.EfficientNetV2B3(input_tensor = x_in, include_top = False, weights = None,input_shape = (input_size, input_size, num_channels), classes = num_classes)
         p0 = backbone.layers[0].output #0 input_2 (None, 256, 256, 3)
         p1 = backbone.layers[13].output #13 block1b_add (None, 128, 128, 16)
         p2 = backbone.layers[32].output #32 block2c_add (None, 64, 64, 40)
