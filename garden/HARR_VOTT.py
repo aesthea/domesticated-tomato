@@ -40,17 +40,29 @@ except Exception as e:
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
+OUTPUT_SIZE = 640
 DEFAULT_TAGS_PICKLE = "C:/test/tags.pik"
-DEFAULT_FRACTURE_PATH = "C:/test/fractured_img"
+DEFAULT_SEGMENT_PATH = "C:/test/fractured_img"
 
 def preprocess_func(im):
+    if im.ndim == 4:
+        imshape = im.shape
+        im = im.reshape([imshape[0], imshape[1] * imshape[2] * imshape[3]])
+        immax = np.expand_dims(np.max(im, 1), 1)
+        immin = np.expand_dims(np.min(im, 1), 1)
+        im = (((im - immin) / (immax - immin + 1e-6)) * 255).astype(np.int16)
+        return im.reshape(imshape)
+    return  ((im - np.min(im)) / (np.max(im) - np.min(im) + 1e-6) * 255).astype(np.int16)
+
+def preprocess_func_ori(im):
     return  ((im - np.min(im)) / (np.max(im) - np.min(im) + 1e-6) * 255).astype(np.int16)
 
 class loader:
     def __init__(self):
         self.df = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
         self.NULL = 999
-        self.FRACTURE_FILES = None
+        self.SEGMENT_FILES = None
+        self.do_not_auto_save_tags = False
 
     def load_from_csv(self, fp = "C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv"):
         column_names = ['folder', 'filename', 'timeseek', 'path', 'label', 'x1', 'y1', 'x2', 'y2', 'color', 'modified_dt']
@@ -90,7 +102,7 @@ class loader:
         self.tags.reset_index(inplace=True)
         self.tags = self.tags[["label", "color"]]
 
-    def setup_tags(self, tagfile):
+    def setup_tags(self, tagfile, nosave = False):
         if tagfile:
             hastag = False
             if os.path.isfile(tagfile):
@@ -110,7 +122,9 @@ class loader:
             else:
                 self.tags = tags
             self.tags = self.tags[["label", "color"]]
-            self.tags.to_pickle(tagfile)
+            if not nosave:
+                self.tags.to_pickle(tagfile)
+                print("saved tags to >> ", tagfile)
         else:
             tags = self.df.copy()
             tags.drop_duplicates("label", inplace=True, keep='last')
@@ -126,8 +140,8 @@ class loader:
             else:
                 self.train = g.sample(frac = frac).reset_index(drop=True)
                 self.test = self.df.sample(frac = 1.0).drop(self.train.index).reset_index(drop=True)
-        elif self.FRACTURE_FILES:
-            fs = self.FRACTURE_FILES
+        elif self.SEGMENT_FILES:
+            fs = self.SEGMENT_FILES
             random.shuffle(fs)
             if frac != 0 or frac != 1.0:
                 self.train = fs[: int(len(fs) * frac)]
@@ -135,7 +149,7 @@ class loader:
             else:
                 self.train = fs
                 self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
-        self.setup_tags(tagfile)
+        self.setup_tags(tagfile, nosave = self.do_not_auto_save_tags)
 
         
     def one_file(self, batch_set):
@@ -183,7 +197,8 @@ class loader:
         try:
             df = pd.read_json(e[37510])
             df["tag_indice"] =  df.apply(lambda x : (self.tags.label == x.label).idxmax(), axis = 1)
-            bb = np.array(df[["x1", "y1", "x2", "y2", "tag_indice"]])
+            df["exist"] =  df.apply(lambda x : np.any((self.tags.label == x.label)), axis = 1)
+            bb = np.array(df[["x1", "y1", "x2", "y2", "tag_indice"]])[df.exist]
             return fp, np.expand_dims(tf.keras.utils.img_to_array(im), 0), np.expand_dims(bb, 0)
         except ValueError as e:
             print(e)
@@ -191,7 +206,7 @@ class loader:
 
     def augment_batch(self, im, bb, seq = None):
         IN_VIEW = 0.9
-        MINIMUM_SIZE = 0.1
+        MINIMUM_SIZE = 0.01
         aug_im, aug_bbwc = augment(im, bb, seq)
         w = aug_im.shape[1]
         h = aug_im.shape[0]
@@ -222,6 +237,7 @@ class loader:
         return aug_im, local_bbox, local_label
 
     def batch(self, t, batch_size = 32, regions = 5, image_shape = (96, 96, 3), anchor_size = 4, skip_null = 0.5, seq = None):
+        #print("BATCH SKIP NULL", skip_null)
         running_file = os.path.join(os.path.split(__file__)[0], "running_batch.txt")
         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
@@ -235,9 +251,11 @@ class loader:
             if type(t) == pd.DataFrame:
                 iter_of = self.one_file(t)
                 need_anchor = True
+                #print("FROM VOTT")
             elif type(t) == list:
                 iter_of = self.one_file_exif(t)
                 need_anchor = False
+                #print("FROM SEGMENTED")
             else:
                 return False
             for fp, im, bb in iter_of:
@@ -249,8 +267,11 @@ class loader:
                 else:
                     iter_anc = [[im, bb]]
                 for ni, nb in iter_anc:
-                    if nb.shape[0] == 0:
-                        if skip_null == 1 or random.random > skip_null:
+                    #print(nb.shape)
+                    if nb.shape[1] == 0:
+                        rng = random.random()
+                        if rng < skip_null:
+                            #print(rng, skip_null)
                             continue
 
                     if image_shape[-1] == 1:
@@ -281,14 +302,15 @@ class loader:
                         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
                         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
                         batch_image = np.ndarray([0, image_shape[0], image_shape[1], image_shape[2]], dtype = np.int16)
+                        
 
     def exif_prepare(self, fol = "C:/test/fractured_img", tagfile = 'C:/test/tags.pik', frac = 0.7):
         fs = os.listdir(fol)
         fs = [os.path.join(fol, n) for n in fs if os.path.splitext(n)[1] == ".jpg"]
         fs = [n for n in fs if os.path.isfile(n)]
         random.shuffle(fs)
-        self.FRACTURE_FILES = fs
-        self.setup_tags(tagfile)
+        self.SEGMENT_FILES = fs
+        self.setup_tags(tagfile, nosave = self.do_not_auto_save_tags)
         self.df = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
         
         if frac != 0 or frac != 1.0:
@@ -298,22 +320,27 @@ class loader:
             self.train = fs
             self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
             
-    def save_as_fraction_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None):
+    def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None):
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         self.prepare(1.0, tagfile)
+        total_files = self.train.groupby("path").path.nunique().count()
         iter_of = self.one_file(self.train)
+        dtnow = datetime.datetime.now()
         if not os.path.isdir(extract_path):
             os.mkdir(extract_path)
         for i, a in enumerate(iter_of):
             fp, im, bb = a
             iter_anc = anc.make(im, bb)
+            if i % 100 == 0:
+                print(i, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
+                dtnow = datetime.datetime.now()
             for j, b in enumerate(iter_anc):
                 ni, nb = b
                 p, fn = os.path.split(fp)
                 f, ext = os.path.splitext(fn)
                 savefile = os.path.join(extract_path, "%s_%03d.jpg" % (f, j))
                 self.save_exif(savefile, ni[0], nb)
-            
+        print(total_files, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
             
 def debugnew():
     l = loader()
@@ -346,9 +373,9 @@ class efficientdet:
     def load_vott(self, path):
         self.c.load_from_vott(path)
 
-    def fracture(self, extract_path = "C:/test/fractured_img", tagfile = "C:/test/tags.pik", image_shape = (128, 128, 3), anchor_size = 4):
+    def segment(self, extract_path = "C:/test/fractured_img", tagfile = "C:/test/tags.pik", image_shape = (128, 128, 3), anchor_size = 4):
         dt_now = datetime.datetime.now()
-        self.c.save_as_fraction_image(extract_path, image_shape = image_shape, anchor_size = 4, tagfile = tagfile)
+        self.c.save_as_segment_image(extract_path, image_shape = image_shape, anchor_size = 4, tagfile = tagfile)
         print("DONE ", (datetime.datetime.now() - dt_now).total_seconds())
 
     def prepare(self, tagfile, frac):
@@ -359,7 +386,13 @@ class efficientdet:
         
     def train(self, learning_rate = 0.001, epoch = 10, steps = 10, batch_size = 32, skip_null = 0.5, augment_seq = None):
         self.m.optimizer.learning_rate = learning_rate
-        train = self.c.batch(self.c.train, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = skip_null, seq = augment_seq)
+        train = self.c.batch(self.c.train, \
+                             batch_size = batch_size, \
+                             regions = self.regions, \
+                             image_shape = self.image_shape, \
+                             anchor_size = self.anchor_size, \
+                             skip_null = skip_null, \
+                             seq = augment_seq)
         test_alive = False
         if type(self.c.test) == pd.DataFrame:
             if self.c.test.source.count() > 0:
@@ -367,12 +400,31 @@ class efficientdet:
         elif type(self.c.test) == list:
             if len(self.c.test) > 0:
                 test_alive = True
-                
         if test_alive:
-            test = self.c.batch(self.c.test, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = skip_null, seq = augment_seq)
-            self.history = self.m.fit(train, epochs = epoch, steps_per_epoch = steps, validation_data = test, validation_steps = steps // 2, verbose = 2)
+            #TEST BATCH IS AVAILABLE.
+            callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 100, verbose = 0, mode = "min", restore_best_weights = False)
+            test = self.c.batch(self.c.test, \
+                                batch_size = batch_size, \
+                                regions = self.regions, \
+                                image_shape = self.image_shape, \
+                                anchor_size = self.anchor_size, \
+                                skip_null = skip_null, \
+                                seq = augment_seq)
+            self.history = self.m.fit(train, \
+                                      epochs = epoch, \
+                                      steps_per_epoch = steps, \
+                                      validation_data = test, \
+                                      validation_steps = steps, \
+                                      verbose = 2, \
+                                      callbacks=[callback])
         else:
-            self.history = self.m.fit(train, epochs = epoch, steps_per_epoch = steps, verbose = 2)
+            #RUN WITHOUT TEST BATCH
+            callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 100, verbose = 0, mode = "min", restore_best_weights = False)
+            self.history = self.m.fit(train, \
+                                      epochs = epoch, \
+                                      steps_per_epoch = steps, \
+                                      verbose = 2, \
+                                      callbacks=[callback])
 
     def save(self, f = None):
         if not f:
@@ -391,9 +443,9 @@ class efficientdet:
         if 'sanity_check_sample' in dir(self):
             del(self.sanity_check_sample)
         
-    def sanity_check(self, batch_size = 36):
+    def sanity_check(self, batch_size = 36, skip_null = 0.7):
         if 'sanity_check_sample' not in dir(self):
-            self.sanity_check_sample = self.c.batch(self.c.train, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = 0.7)
+            self.sanity_check_sample = self.c.batch(self.c.train, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = skip_null)            
         x,(y,z) = next(self.sanity_check_sample)
         if np.max(x) <= 1.0:
             x = x * 255
@@ -401,6 +453,7 @@ class efficientdet:
             x = tf.convert_to_tensor(x, tf.int16)
             x = tf.image.grayscale_to_rgb(x, name=None)
             x = x.numpy()
+        x = preprocess_func(x)
         colors = [[255, 0, 0], ]
         imbb = tf.image.draw_bounding_boxes(x, z, colors)
         items = imbb.shape[0]
@@ -450,7 +503,7 @@ class efficientdet:
         plt.clf()
         plt.close()        
 
-    def predict(self, fp, output_size = 640, debug = False, nms_iou = 0.01):
+    def predict(self, fp, output_size = OUTPUT_SIZE, debug = False, nms_iou = 0.01):
         #tags = self.c.unique_label
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
@@ -465,13 +518,14 @@ class efficientdet:
         image = tf.expand_dims(image,0)
         
         raw_image = tf.expand_dims(raw_image, 0)
-        image = preprocess_func(image.numpy())
+        #image = preprocess_func(image.numpy())
 
         anc = anchor(self.anchor_size, crop_size = self.c.image_size)
         anchor_gen = anc.make(image)
         image_for_predict, bb = anchor_gen.__next__()
 
         with tf.device("cpu:0"):
+            image_for_predict = preprocess_func(image_for_predict.numpy())
             inference = self.m.predict(image_for_predict, verbose = 0)
     
         if debug:
@@ -483,14 +537,7 @@ class efficientdet:
                 im = im.numpy()
                 row = i // sqr_grid
                 col = i % sqr_grid
-                ax[row, col].set_title(str(i), fontdict= {'fontsize': 6})
-
-##                for j in range(classifier[i].shape[0]):
-##
-##                    x1 = inference[1][i][j][1] * self.anchor.crop_size[1]
-##                    y1 = inference[1][i][j][0] * self.anchor.crop_size[0]
-##                    cv2.putText(im, str(classifier[i][j]), (int(x1), int(y1)), cv2.FONT_HERSHEY_PLAIN, 1, (255, 0, 0) , 1)
-                
+                ax[row, col].set_title(str(i), fontdict= {'fontsize': 6})         
                 im = tf.keras.preprocessing.image.array_to_img(im)
                 ax[row, col].imshow(im)
                 ax[row, col].axis('off')
@@ -803,7 +850,8 @@ def load_model_by_pik(f = "tkpik.pik"):
             model.PORT = tkpik["port"]
             model.NORMALIZATION = tkpik["normalization"]
             model.RANDOM_DROP = tkpik["random_drop"]
-            model.initialize()
+            model.NULL_SKIP = tkpik["nullskip"]
+            model.initialize(do_not_auto_save_tags = True)
             return model
         
 class load_model:
@@ -829,7 +877,7 @@ class load_model:
         self.NORMALIZATION = False
         self.RANDOM_DROP = 0.2
 
-    def initialize(self):
+    def initialize(self, do_not_auto_save_tags = False):
         print("initialize model")
         self.model = efficientdet(image_shape=(self.IMAGE_SIZE, self.IMAGE_SIZE, self.COLOR_CHANNEL), \
                                   detection_region = self.REGIONS, \
@@ -847,6 +895,7 @@ class load_model:
         print(self.vott_available_paths)
         for fp in self.vott_available_paths:
             self.model.load_vott(fp)
+        self.model.c.do_not_auto_save_tags = do_not_auto_save_tags
         self.model.prepare(self.SAVENAME + ".pik", self.TRAIN_SIZE)
         self.action = None
 
@@ -877,11 +926,11 @@ class load_model:
     def show_training_result(self, history):
         self.model.chart()
 
-    def fracture_image(self):
+    def segment_image(self):
         for fp in self.vott_available_paths:
             self.model.load_vott(fp)
         self.model.prepare(self.SAVENAME + ".pik", 1.0)
-        self.model.c.save_as_fraction_image(self.SAVENAME, image_shape = (128, 128, 3), anchor_size = 4, tagfile = self.SAVENAME + ".pik")
+        self.model.c.save_as_segment_image(self.SAVENAME, image_shape = (128, 128, 3), anchor_size = 4, tagfile = self.SAVENAME + ".pik")
 
     def save(self, f = None):
         self.action = "save"
@@ -901,8 +950,8 @@ class load_model:
         except Exception as e:
             print(e)
 
-    def generator_check(self):
-        self.model.sanity_check()
+    def generator_check(self, batch_size = 36, skip_null = 0.7):
+        self.model.sanity_check(batch_size, skip_null)
 
     def sanity_check(self):
         self.model.sanity_check()
@@ -926,6 +975,7 @@ class load_model:
             ax[row, col].set_title(fn, fontdict= {'fontsize': 6})
             ax[row, col].imshow(im)
             ax[row, col].axis('off')
+        fig.suptitle(os.path.split(folder)[-1], fontsize=11)
         plt.show()
         plt.clf()
         plt.close()
@@ -941,28 +991,17 @@ def from_hex(h):
     return [int(s[:2],16), int(s[2:4], 16), int(s[4:], 16)]
 
 def test_train():
-##    model = load_model_by_pik()
-##    model.VOTT_PATHS = ['C:/PROJECT/HARR_VOTT/vott-json-export/OCR-export.json',]
-##    model.initialize()
-##    model.load()
-##    model.train(10, 10, 0.001)
     e = efficientdet(image_shape=(96,96,3), detection_region = 2, classes = 1000, backbone = "B0")
-    #e.load_vott('C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/type2 train/vott-json-export/TAPING-PIN-PROBE-type2-train-export.json')
-    #e.load_csv("C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv")
-    #e.prepare("C:/test/tags.pik", 0.7)
     e.load_folder(r"C:\test\fractured_img", "C:/test/tags.pik", 0.7)
     e.train(0.01, 50, 20, 32)
     return e
 
-def save_fractured_image():
+def save_segmented_image():
     l = loader()
     l.load_from_csv()
-    l.save_as_fraction_image(r"C:\test\fractured_img", image_shape = (128, 128, 3), anchor_size = 4, tagfile = "C:/test/tags.pik")
-
+    l.save_as_segment_image(r"C:\test\fractured_img", image_shape = (128, 128, 3), anchor_size = 4, tagfile = "C:/test/tags.pik")
 
 def test():
-    #votts = []
-    #m = load_model(IMAGE_SIZE = (96, 96), COLOR_CHANNEL = 3, CLASSIFICATION_TAGS = 1000, REGIONS = 2, DROPOUT = 0.2, FPN_MODE = None, BACKBONE = "B0", VOTT_PATHS = votts, AUGMENT = 255)
     m = load_model_by_pik()
     return m
 

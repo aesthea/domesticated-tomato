@@ -32,30 +32,6 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
     else:
         backbone = tf.keras.applications.efficientnet.EfficientNetB0(input_tensor = x_in, include_top = False, weights = None, input_shape = x_in.shape[1:], classes = num_classes)
 
-##    x4_add = None
-##    x3_add = None
-##    x2_add = None
-##    x1_add = None
-##    for i, j in enumerate(backbone.layers):
-##        if "add" in j.name:
-##            print(j.name, j.output.shape)
-##            if j.output.shape[1] == int(input_shape[0] / 4):
-##                x4_add = [i, j]
-##            elif j.output.shape[1] == int(input_shape[0] / 8):
-##                x3_add = [i, j]
-##            elif j.output.shape[1] == int(input_shape[0] / 16):
-##                x2_add = [i, j]
-##            elif j.output.shape[1] == int(input_shape[0] / 32):
-##                x1_add = [i, j]
-##    if x4_add and x3_add and x2_add and x1_add:
-##        print(x4_add[0], x4_add[1].name, x4_add[1].output.shape)
-##        print(x3_add[0], x3_add[1].name, x3_add[1].output.shape)
-##        print(x2_add[0], x2_add[1].name, x2_add[1].output.shape)
-##        print(x1_add[0], x1_add[1].name, x1_add[1].output.shape)
-##    else:
-##        raise Exception("Not able to fufill layers")
-##
-##    layer_block = (x4_add[1].output, x3_add[1].output, x2_add[1].output, x1_add[1].output)
     layer_block = []
     cur_shape = None
     for i, j in enumerate(backbone.layers):
@@ -82,7 +58,7 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
         
     global_avg_pool = []
     for i, j in enumerate(f3):
-##        print("global_avg_pool", i, j.shape)
+        #print("global_avg_pool", i, j.shape)
 ##        if j.shape != f3[-1].shape:
 ##            strides = j.shape[1] // f3[-1].shape[1]
 ##            conv2d = tf.keras.layers.Conv2D(filters=f3[-1].shape[-1], \
@@ -91,8 +67,9 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
 ##                                            padding = 'same', \
 ##                                            activation = "relu", \
 ##                                            name = "conv2d_for_globalpool_%02d" % i)(j)
-##            print(conv2d.shape)
-##            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(conv2d)
+##            c = tf.keras.layers.BatchNormalization(axis=-1, name = "BN_for_globalpool_%02d" % i)(conv2d)
+##            c = tf.keras.layers.Activation('softmax', name = "Activation_for_globalpool_%02d" % i)(c)
+##            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(c)
 ##        else:
 ##            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
         pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
@@ -104,7 +81,6 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
         
     r = tf.keras.layers.Concatenate(axis=-1)(global_avg_pool)
     r = tf.keras.layers.Dropout(dropout)(r)
-##    print("Dropout", r.shape)
 
     b = tf.keras.layers.Dense(4 * detection_region, name = "dense_regression")(r)
     b = tf.keras.layers.Reshape([detection_region, 4], name = "reshape_regression")(b)
