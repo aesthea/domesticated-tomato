@@ -1040,7 +1040,8 @@ class widget:
         for fp in self.data["votts"]:
             self.DET_MODEL.model.load_vott(fp)
         self.DET_MODEL.model.prepare(self.data["savefile"] + ".pik", 1.0)
-        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], image_shape = (128, 128, 3), anchor_size = 4, tagfile = self.data["savefile"] + ".pik")
+        anc = self.value_type(self.inputs["anchor"], int)
+        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], image_shape = (128, 128, 3), anchor_size = anc, tagfile = self.data["savefile"] + ".pik")
         return True
     
     def train_with_segment(self):
@@ -1065,8 +1066,23 @@ class widget:
             if not float(self.data[k]) > 0:
                 print("no value", k, self.data[k])
                 return False
-        self.DET_MODEL.model.load_folder(self.data["savefile"], self.data["savefile"] + ".pik", self.data["trainsize"])
-        v = self.DET_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], save_on_end = False)
+            
+        NULLSKIP = self.value_type(self.inputs["nullskip"], float)
+        LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
+        TRAINSIZE= self.value_type(self.inputs["trainsize"], float)
+        BATCHSIZE = self.value_type(self.inputs["batchsize"], int)
+        STEPS = self.value_type(self.inputs["steps"], int)
+        AUGMENT = self.value_type(self.inputs["augment"], int)
+        
+        self.DET_MODEL.model.load_folder(self.data["savefile"], self.data["savefile"] + ".pik", TRAINSIZE)
+        v = self.DET_MODEL.model.train(learning_rate = LEARNING_RATE, \
+                                       epoch = EPOCH, \
+                                       steps = STEPS, \
+                                       batch_size = BATCHSIZE, \
+                                       skip_null = NULLSKIP, \
+                                       augment_seq = AUGMENT)
+        #v = self.DET_MODEL.train(EPOCH, self.data["steps"], LEARNING_RATE, save_on_end = False)
+        self.save()
         self.DET_MODEL.model.chart()
 
     def train(self, early_stopping = False, cpu_training = False, save_on_end = False):
@@ -1107,10 +1123,19 @@ class widget:
             no_validation = True
         else:
             no_validation = False
+
+        NULLSKIP = self.value_type(self.inputs["nullskip"], float)
+        LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
+        TRAINSIZE= self.value_type(self.inputs["trainsize"], float)
+        BATCHSIZE = self.value_type(self.inputs["batchsize"], int)
+        STEPS = self.value_type(self.inputs["steps"], int)
+        AUGMENT = self.value_type(self.inputs["augment"], int)
+        
         if cpu_training:
-            v = self.DET_MODEL.cpu_train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
+            v = self.DET_MODEL.cpu_train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
         else:
-            v = self.DET_MODEL.train(EPOCH, self.data["steps"], self.data["learning_rate"], early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
+            v = self.DET_MODEL.train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
+        self.save()
         self.DET_MODEL.model.chart()
         
     def save(self):

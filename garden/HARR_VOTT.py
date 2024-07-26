@@ -40,7 +40,7 @@ except Exception as e:
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
-OUTPUT_SIZE = 640
+OUTPUT_SIZE = 480
 DEFAULT_TAGS_PICKLE = "C:/test/tags.pik"
 DEFAULT_SEGMENT_PATH = "C:/test/fractured_img"
 
@@ -98,7 +98,7 @@ class loader:
 
     def add_tag(self, label, color):
         self.tags = pd.concat([self.tags, pd.DataFrame([[label, color]], columns = ["label", "color"])], verify_integrity = True, ignore_index = True)
-        self.tags.drop_duplicates("label", inplace=True, keep='last')
+        self.tags.drop_duplicates("label", inplace=True, keep='first')
         self.tags.reset_index(inplace=True)
         self.tags = self.tags[["label", "color"]]
 
@@ -198,6 +198,12 @@ class loader:
             df = pd.read_json(e[37510])
             df["tag_indice"] =  df.apply(lambda x : (self.tags.label == x.label).idxmax(), axis = 1)
             df["exist"] =  df.apply(lambda x : np.any((self.tags.label == x.label)), axis = 1)
+            #ADD NEW TAG TO CURRENT LIST IF DOES NOT EXISTS.
+            if np.any(df.exist == False):
+                self.tags = pd.concat([self.tags, df[["label", "color"]][df.exist == False]], verify_integrity = True, ignore_index = True)
+                self.tags.drop_duplicates("label", inplace=True, keep='first')
+                self.tags.reset_index(inplace=True)
+                self.tags = self.tags[["label", "color"]]           
             bb = np.array(df[["x1", "y1", "x2", "y2", "tag_indice"]])[df.exist]
             return fp, np.expand_dims(tf.keras.utils.img_to_array(im), 0), np.expand_dims(bb, 0)
         except ValueError as e:
@@ -205,8 +211,8 @@ class loader:
         return False
 
     def augment_batch(self, im, bb, seq = None):
-        IN_VIEW = 0.9
-        MINIMUM_SIZE = 0.01
+        IN_VIEW = 0.95
+        MINIMUM_SIZE = 0.07
         aug_im, aug_bbwc = augment(im, bb, seq)
         w = aug_im.shape[1]
         h = aug_im.shape[0]
@@ -284,7 +290,10 @@ class loader:
 
                     ni = preprocess_func(ni)
                     aug_im, aug_bb, aug_lb = self.augment_batch(ni, nb, seq)
-                        
+                    if aug_bb.shape[0] == 0:
+                        rng = random.random()
+                        if rng < skip_null:
+                            continue        
                     if batch_boundary_box.shape[1] > aug_bb.shape[0]:
                         for i in range(batch_boundary_box.shape[1] - aug_bb.shape[0]):
                             aug_bb = np.append(aug_bb, [[0, 0, 1, 1]], axis = 0)
@@ -321,6 +330,7 @@ class loader:
             self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
             
     def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None):
+        print("SAVE SEGMENT WITH ANCHOR LV: ", anchor_size)
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         self.prepare(1.0, tagfile)
         total_files = self.train.groupby("path").path.nunique().count()
@@ -339,7 +349,8 @@ class loader:
                 p, fn = os.path.split(fp)
                 f, ext = os.path.splitext(fn)
                 savefile = os.path.join(extract_path, "%s_%03d.jpg" % (f, j))
-                self.save_exif(savefile, ni[0], nb)
+                if nb.shape[1] > 0:
+                    self.save_exif(savefile, ni[0], nb)
         print(total_files, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
             
 def debugnew():
@@ -358,7 +369,8 @@ def debugnew():
 class efficientdet:
     def __init__(self, image_shape = (64, 64, 3), detection_region = 2, classes = 1000, backbone = "B0", dropout = 0.2):
         self.m = det.edet(input_shape = image_shape, num_classes = classes, detection_region = detection_region, dropout = dropout, backbone = backbone)
-        self.m.compile(optimizer = Adam(learning_rate = 0.001), loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
+        self.m.compile(optimizer = Adam(learning_rate = 0.01), \
+                       loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
         self.c = loader()
         self.c.NULL = classes - 1
         self.c.color_channel = image_shape[-1]
@@ -414,17 +426,18 @@ class efficientdet:
                                       epochs = epoch, \
                                       steps_per_epoch = steps, \
                                       validation_data = test, \
-                                      validation_steps = steps, \
-                                      verbose = 2, \
-                                      callbacks=[callback])
+                                      validation_steps = steps // 2, \
+                                      verbose = 2)
+                                      #verbose = 2, \
+                                      #callbacks=[callback])
+
         else:
             #RUN WITHOUT TEST BATCH
             callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 100, verbose = 0, mode = "min", restore_best_weights = False)
             self.history = self.m.fit(train, \
                                       epochs = epoch, \
                                       steps_per_epoch = steps, \
-                                      verbose = 2, \
-                                      callbacks=[callback])
+                                      verbose = 2)
 
     def save(self, f = None):
         if not f:
@@ -930,7 +943,7 @@ class load_model:
         for fp in self.vott_available_paths:
             self.model.load_vott(fp)
         self.model.prepare(self.SAVENAME + ".pik", 1.0)
-        self.model.c.save_as_segment_image(self.SAVENAME, image_shape = (128, 128, 3), anchor_size = 4, tagfile = self.SAVENAME + ".pik")
+        self.model.c.save_as_segment_image(self.SAVENAME, image_shape = (128, 128, 3), anchor_size = int(self.ANCHOR_LEVEL), tagfile = self.SAVENAME + ".pik")
 
     def save(self, f = None):
         self.action = "save"
@@ -992,7 +1005,7 @@ def from_hex(h):
 
 def test_train():
     e = efficientdet(image_shape=(96,96,3), detection_region = 2, classes = 1000, backbone = "B0")
-    e.load_folder(r"C:\test\fractured_img", "C:/test/tags.pik", 0.7)
+    e.load_folder(r"C:\Users\CSIPIG0140\Desktop\TRAIN IMAGE\DETECTOR_ALL\DETECTOR_ALL", "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/DETECTOR_ALL/DETECTOR_ALL.pik", 0.7)
     e.train(0.01, 50, 20, 32)
     return e
 

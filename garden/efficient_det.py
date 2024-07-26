@@ -42,46 +42,41 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
                 layer_block.append(j.output)
             else:
                 layer_block[-1] = j.output
-                
-    f1 = biFPN(layer_block, sequence = 1)
+
+    bn_activation = []
+    for i, j in enumerate(layer_block):
+        c = tf.keras.layers.BatchNormalization(axis=-1, name = "before_FPN_BN_%s" % i)(j)
+        c = tf.keras.layers.Activation('relu', name = "before_FPN_Activation_%s" % i)(c)
+        c = tf.keras.layers.Dropout(dropout)(c)
+        bn_activation.append(c)
+    #bn_activation.append(backbone.layers[-1].output)
+        
+    #f1 = biFPN(layer_block, sequence = 1)
+    f1 = biFPN(bn_activation, sequence = 1)
     f2 = biFPN(f1, sequence = 2)
     f3 = biFPN(f2, sequence = 3)
 
     for i, j in enumerate(layer_block):
         print("layer block", i, j.name, j.shape)
-##    for i, j in enumerate(f1):
-##        print("f1", i, j.name, j.shape)
-##    for i, j in enumerate(f2):
-##        print("f2", i, j.name, j.shape)
-##    for i, j in enumerate(f3):
-##        print("f3", i, j.name, j.shape)
         
     global_avg_pool = []
+    global_avg_pool_classification = []
+    global_avg_pool_regression = []
     for i, j in enumerate(f3):
-        #print("global_avg_pool", i, j.shape)
-##        if j.shape != f3[-1].shape:
-##            strides = j.shape[1] // f3[-1].shape[1]
-##            conv2d = tf.keras.layers.Conv2D(filters=f3[-1].shape[-1], \
-##                                            kernel_size = strides, \
-##                                            strides = strides, \
-##                                            padding = 'same', \
-##                                            activation = "relu", \
-##                                            name = "conv2d_for_globalpool_%02d" % i)(j)
-##            c = tf.keras.layers.BatchNormalization(axis=-1, name = "BN_for_globalpool_%02d" % i)(conv2d)
-##            c = tf.keras.layers.Activation('softmax', name = "Activation_for_globalpool_%02d" % i)(c)
-##            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(c)
-##        else:
-##            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
-        pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
+        if j.shape[1] > 3:
+            s2 = tf.keras.layers.Conv2D(filters = j.shape[-1] * 3, kernel_size= 3, strides = 1, padding = 'valid', activation = "relu", name = "expand_Conv2D_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
+            s2 = tf.keras.layers.BatchNormalization(name = "expand_%02d_%02d_BN" % (j.shape[1], j.shape[3]))(s2)
+            s2 = tf.keras.layers.Activation("relu", name = "expand_%02d_%02d_Activation" % (j.shape[1], j.shape[3]))(s2)
+            #print(i, s2.shape)
+            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(s2)
+        else:
+            pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
+            #print(i, j.shape)
         global_avg_pool.append(pooling)
-
-
-    for i, j in enumerate(global_avg_pool):
-        print("global_avg_pool output", i, j.name, j.shape)
+        #print(i, pooling.shape)
         
     r = tf.keras.layers.Concatenate(axis=-1)(global_avg_pool)
-    r = tf.keras.layers.Dropout(dropout)(r)
-
+    
     b = tf.keras.layers.Dense(4 * detection_region, name = "dense_regression")(r)
     b = tf.keras.layers.Reshape([detection_region, 4], name = "reshape_regression")(b)
     b = tf.keras.layers.Activation('sigmoid', name = "activation_regression")(b)
@@ -185,8 +180,12 @@ def biFPN(layers, KERNELS = 3, end_activation = "relu", dropout = 0.2, sequence 
 fl = tf.keras.losses.Huber(reduction = 'sum')
 gl = tfa.losses.GIoULoss()
 def regression_loss(y_true, y_pred):
-    f = fl(y_true, y_pred, 1.5)
+    f = fl(y_true, y_pred, 1.0)
     g = gl(y_true, y_pred, 1.0)
     return g + f
 
 classification_loss = tf.keras.losses.SparseCategoricalCrossentropy()
+
+
+def experiment_loss(L1, L2):
+    print(L1, L2)
