@@ -435,7 +435,7 @@ class widget:
         self.b11_frame.grid(column = 0, row = 11)
         self.train_button_early_stopping = Button(master = self.b11_frame, text = "TRAIN (early stopping)", relief="groove", font = self.bold_font, bd = 2, command = lambda : self.train(early_stopping = True, cpu_training = False))
         self.train_button_early_stopping.pack(fill = BOTH, expand = True)
-        self.train_button_early_stopping["state"] = "disabled"
+        #self.train_button_early_stopping["state"] = "disabled"
 
         self.b12_frame = Frame(master = self.frame2, width = 200, height = 25)
         self.b12_frame.grid_propagate(0)
@@ -1035,16 +1035,19 @@ class widget:
         self.RELOAD_ML_FLAG = reload_ML
 
     def segment_image(self):
+        WITH_LABELS_ONLY = False
         if not messagebox.askyesno(title="segment", message="create segmented imageset?"):
             return False
+        if not messagebox.askyesno(title="segment", message="include non labels?"):
+            WITH_LABELS_ONLY = True
         for fp in self.data["votts"]:
             self.DET_MODEL.model.load_vott(fp)
         self.DET_MODEL.model.prepare(self.data["savefile"] + ".pik", 1.0)
         anc = self.value_type(self.inputs["anchor"], int)
-        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], image_shape = (128, 128, 3), anchor_size = anc, tagfile = self.data["savefile"] + ".pik")
+        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], image_shape = (128, 128, 3), anchor_size = anc, tagfile = self.data["savefile"] + ".pik", with_labels_only = WITH_LABELS_ONLY)
         return True
     
-    def train_with_segment(self):
+    def train_with_segment(self, early_stopping = False):
         EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
         if EPOCH:
             try:
@@ -1080,7 +1083,8 @@ class widget:
                                        steps = STEPS, \
                                        batch_size = BATCHSIZE, \
                                        skip_null = NULLSKIP, \
-                                       augment_seq = AUGMENT)
+                                       augment_seq = AUGMENT, \
+                                       callback_earlystop = early_stopping)
         #v = self.DET_MODEL.train(EPOCH, self.data["steps"], LEARNING_RATE, save_on_end = False)
         self.save()
         self.DET_MODEL.model.chart()
@@ -1095,7 +1099,7 @@ class widget:
         if os.path.isdir(self.data["savefile"]):
             if len(os.listdir(self.data["savefile"])) > 10:
                 if messagebox.askyesno(title="segment", message="Run with segmented images?"):
-                    self.train_with_segment()
+                    self.train_with_segment(early_stopping)
                     return True
             
         EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
@@ -1132,9 +1136,10 @@ class widget:
         AUGMENT = self.value_type(self.inputs["augment"], int)
         
         if cpu_training:
-            v = self.DET_MODEL.cpu_train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
-        else:
-            v = self.DET_MODEL.train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
+            print("CPU TRAINING DEPENDS ON CUDA SETTING")
+            #v = self.DET_MODEL.cpu_train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
+            
+        v = self.DET_MODEL.train(EPOCH, STEPS, LEARNING_RATE, early_stopping = early_stopping, no_validation = no_validation, save_on_end = save_on_end)
         self.save()
         self.DET_MODEL.model.chart()
         

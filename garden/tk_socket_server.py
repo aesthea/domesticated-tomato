@@ -68,9 +68,9 @@ async def handler(websocket, path, predict, port_no):
                             load_model()
                     result["args"] = data["args"]
                     
-                if "filename" in data and "bytes" in data:
+                if "filename" in data and "base64" in data:
                     fn, ext = os.path.splitext(data["filename"])
-                    mimebytes = data["bytes"].split(",")
+                    mimebytes = data["base64"].split(",")
                     if len(mimebytes) == 2:
                         mime, bytedata = mimebytes
                         bytedata = base64.b64decode(bytedata)

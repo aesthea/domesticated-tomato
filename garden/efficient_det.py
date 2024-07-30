@@ -64,18 +64,17 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
     global_avg_pool_regression = []
     for i, j in enumerate(f3):
         if j.shape[1] > 3:
-            s2 = tf.keras.layers.Conv2D(filters = j.shape[-1] * 3, kernel_size= 3, strides = 1, padding = 'valid', activation = "relu", name = "expand_Conv2D_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
-            s2 = tf.keras.layers.BatchNormalization(name = "expand_%02d_%02d_BN" % (j.shape[1], j.shape[3]))(s2)
-            s2 = tf.keras.layers.Activation("relu", name = "expand_%02d_%02d_Activation" % (j.shape[1], j.shape[3]))(s2)
-            #print(i, s2.shape)
+            s2 = tf.keras.layers.Conv2D(filters = j.shape[-1] * 2, kernel_size= 3, strides = 2, padding = 'valid', activation = "relu", name = "gp_Conv2D_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
+            s2 = tf.keras.layers.BatchNormalization(name = "gp_BN_%02d_%02d" % (j.shape[1], j.shape[3]))(s2)
+            s2 = tf.keras.layers.Activation("relu", name = "gp_Activation_%02d_%02d" % (j.shape[1], j.shape[3]))(s2)
             pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(s2)
         else:
             pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
-            #print(i, j.shape)
         global_avg_pool.append(pooling)
-        #print(i, pooling.shape)
         
     r = tf.keras.layers.Concatenate(axis=-1)(global_avg_pool)
+
+    print(r.shape)
     
     b = tf.keras.layers.Dense(4 * detection_region, name = "dense_regression")(r)
     b = tf.keras.layers.Reshape([detection_region, 4], name = "reshape_regression")(b)

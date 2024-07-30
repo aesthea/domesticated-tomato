@@ -131,6 +131,9 @@ class loader:
             tags.reset_index(inplace=True)
             self.tags = tags[['label', 'color']].copy()
             
+    def save_tags(self, tagfile):
+        self.tags.to_pickle(tagfile)
+            
     def prepare(self, frac = 0.7, tagfile = None):
         if self.df.source.count() > 0:
             g = self.df.groupby("path")
@@ -200,10 +203,12 @@ class loader:
             df["exist"] =  df.apply(lambda x : np.any((self.tags.label == x.label)), axis = 1)
             #ADD NEW TAG TO CURRENT LIST IF DOES NOT EXISTS.
             if np.any(df.exist == False):
+                print("ADD IN NEW TAG")
                 self.tags = pd.concat([self.tags, df[["label", "color"]][df.exist == False]], verify_integrity = True, ignore_index = True)
                 self.tags.drop_duplicates("label", inplace=True, keep='first')
                 self.tags.reset_index(inplace=True)
-                self.tags = self.tags[["label", "color"]]           
+                self.tags = self.tags[["label", "color"]]
+                
             bb = np.array(df[["x1", "y1", "x2", "y2", "tag_indice"]])[df.exist]
             return fp, np.expand_dims(tf.keras.utils.img_to_array(im), 0), np.expand_dims(bb, 0)
         except ValueError as e:
@@ -329,7 +334,7 @@ class loader:
             self.train = fs
             self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
             
-    def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None):
+    def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None, with_labels_only = False):
         print("SAVE SEGMENT WITH ANCHOR LV: ", anchor_size)
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         self.prepare(1.0, tagfile)
@@ -346,10 +351,10 @@ class loader:
                 dtnow = datetime.datetime.now()
             for j, b in enumerate(iter_anc):
                 ni, nb = b
-                p, fn = os.path.split(fp)
-                f, ext = os.path.splitext(fn)
-                savefile = os.path.join(extract_path, "%s_%03d.jpg" % (f, j))
-                if nb.shape[1] > 0:
+                if nb.shape[1] > 0 or not with_labels_only:
+                    p, fn = os.path.split(fp)
+                    f, ext = os.path.splitext(fn)
+                    savefile = os.path.join(extract_path, "%s_%03d.jpg" % (f, j))
                     self.save_exif(savefile, ni[0], nb)
         print(total_files, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
             
@@ -396,7 +401,7 @@ class efficientdet:
     def load_folder(self, path, tagfile, frac):
         self.c.exif_prepare(path, tagfile, frac)
         
-    def train(self, learning_rate = 0.001, epoch = 10, steps = 10, batch_size = 32, skip_null = 0.5, augment_seq = None):
+    def train(self, learning_rate = 0.001, epoch = 10, steps = 10, batch_size = 32, skip_null = 0.5, augment_seq = None, callback_earlystop = False):
         self.m.optimizer.learning_rate = learning_rate
         train = self.c.batch(self.c.train, \
                              batch_size = batch_size, \
@@ -414,7 +419,7 @@ class efficientdet:
                 test_alive = True
         if test_alive:
             #TEST BATCH IS AVAILABLE.
-            callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 100, verbose = 0, mode = "min", restore_best_weights = False)
+            callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
             test = self.c.batch(self.c.test, \
                                 batch_size = batch_size, \
                                 regions = self.regions, \
@@ -422,22 +427,40 @@ class efficientdet:
                                 anchor_size = self.anchor_size, \
                                 skip_null = skip_null, \
                                 seq = augment_seq)
-            self.history = self.m.fit(train, \
-                                      epochs = epoch, \
-                                      steps_per_epoch = steps, \
-                                      validation_data = test, \
-                                      validation_steps = steps // 2, \
-                                      verbose = 2)
-                                      #verbose = 2, \
-                                      #callbacks=[callback])
+            if callback_earlystop:
+                print("TRAIN WITH CALLBACK EARLYSTOP")
+                self.history = self.m.fit(train, \
+                                          epochs = epoch, \
+                                          steps_per_epoch = steps, \
+                                          validation_data = test, \
+                                          validation_steps = steps // 2, \
+                                          verbose = 2, \
+                                          callbacks=[callback])
+            else:
+                self.history = self.m.fit(train, \
+                                          epochs = epoch, \
+                                          steps_per_epoch = steps, \
+                                          validation_data = test, \
+                                          validation_steps = steps // 2, \
+                                          verbose = 2)
+                                          #verbose = 2, \
+                                          #callbacks=[callback])
 
         else:
             #RUN WITHOUT TEST BATCH
-            callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 100, verbose = 0, mode = "min", restore_best_weights = False)
-            self.history = self.m.fit(train, \
-                                      epochs = epoch, \
-                                      steps_per_epoch = steps, \
-                                      verbose = 2)
+            callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
+            if callback_earlystop:
+                print("TRAIN WITH CALLBACK EARLYSTOP")
+                self.history = self.m.fit(train, \
+                                          epochs = epoch, \
+                                          steps_per_epoch = steps, \
+                                          verbose = 2, \
+                                          callbacks=[callback])
+            else:
+                self.history = self.m.fit(train, \
+                                          epochs = epoch, \
+                                          steps_per_epoch = steps, \
+                                          verbose = 2)
 
     def save(self, f = None):
         if not f:
@@ -516,7 +539,7 @@ class efficientdet:
         plt.clf()
         plt.close()        
 
-    def predict(self, fp, output_size = OUTPUT_SIZE, debug = False, nms_iou = 0.01):
+    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = 0.01, debug = False):
         #tags = self.c.unique_label
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
@@ -902,7 +925,8 @@ class load_model:
         self.model_compiled_height = h
         self.model_compiled_width = w
         self.model_compiled_channel = c
-        
+
+        self.model.anchor_size = int(self.ANCHOR_LEVEL)
         self.vott_available_paths = [n for n in self.VOTT_PATHS if os.path.isfile(n)]
         
         print(self.vott_available_paths)
@@ -928,7 +952,7 @@ class load_model:
             self.model.prepare(self.SAVENAME + ".pik", 1)
         else:
             self.model.prepare(self.SAVENAME + ".pik", self.TRAIN_SIZE)
-        self.model.train(learning_rate = LR, epoch = EPOCHS, steps = STEPS, batch_size = self.BATCH_SIZE, skip_null = self.NULL_SKIP, augment_seq = self.AUGMENT)
+        self.model.train(learning_rate = LR, epoch = EPOCHS, steps = STEPS, batch_size = self.BATCH_SIZE, skip_null = self.NULL_SKIP, augment_seq = self.AUGMENT, callback_earlystop = early_stopping)
         if save_on_end:
             self.model.save(self.SAVENAME)
         return True
@@ -951,6 +975,7 @@ class load_model:
             f = self.SAVENAME
         colors = [[255,0,0],]
         self.model.save(f)
+        self.model.c.save_tags(self.SAVENAME + ".pik")
         print("SAVED WEIGHTS")
 
     def load(self, f = None):
