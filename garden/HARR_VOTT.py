@@ -154,7 +154,6 @@ class loader:
                 self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
         self.setup_tags(tagfile, nosave = self.do_not_auto_save_tags)
 
-        
     def one_file(self, batch_set):
         g = batch_set.groupby("path")
         y = g.indices
@@ -248,7 +247,6 @@ class loader:
         return aug_im, local_bbox, local_label
 
     def batch(self, t, batch_size = 32, regions = 5, image_shape = (96, 96, 3), anchor_size = 4, skip_null = 0.5, seq = None):
-        #print("BATCH SKIP NULL", skip_null)
         running_file = os.path.join(os.path.split(__file__)[0], "running_batch.txt")
         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
@@ -262,27 +260,20 @@ class loader:
             if type(t) == pd.DataFrame:
                 iter_of = self.one_file(t)
                 need_anchor = True
-                #print("FROM VOTT")
             elif type(t) == list:
                 iter_of = self.one_file_exif(t)
                 need_anchor = False
-                #print("FROM SEGMENTED")
             else:
                 return False
             for fp, im, bb in iter_of:
-##                if np.max(bb) > 20000:
-##                    print(fp, bb)
-##                    raise Exception
                 if need_anchor:
                     iter_anc = anc.make(im, bb)
                 else:
                     iter_anc = [[im, bb]]
                 for ni, nb in iter_anc:
-                    #print(nb.shape)
                     if nb.shape[1] == 0:
                         rng = random.random()
                         if rng < skip_null:
-                            #print(rng, skip_null)
                             continue
 
                     if image_shape[-1] == 1:
@@ -317,7 +308,6 @@ class loader:
                         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
                         batch_image = np.ndarray([0, image_shape[0], image_shape[1], image_shape[2]], dtype = np.int16)
                         
-
     def exif_prepare(self, fol = "C:/test/fractured_img", tagfile = 'C:/test/tags.pik', frac = 0.7):
         fs = os.listdir(fol)
         fs = [os.path.join(fol, n) for n in fs if os.path.splitext(n)[1] == ".jpg"]
@@ -341,12 +331,13 @@ class loader:
         total_files = self.train.groupby("path").path.nunique().count()
         iter_of = self.one_file(self.train)
         dtnow = datetime.datetime.now()
+        dtstart = datetime.datetime.now()
         if not os.path.isdir(extract_path):
             os.mkdir(extract_path)
         for i, a in enumerate(iter_of):
             fp, im, bb = a
             iter_anc = anc.make(im, bb)
-            if i % 100 == 0:
+            if i % 100 == 0 or (datetime.datetime.now() - dtnow).total_seconds() > 1800:
                 print(i, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
                 dtnow = datetime.datetime.now()
             for j, b in enumerate(iter_anc):
@@ -356,22 +347,9 @@ class loader:
                     f, ext = os.path.splitext(fn)
                     savefile = os.path.join(extract_path, "%s_%03d.jpg" % (f, j))
                     self.save_exif(savefile, ni[0], nb)
-        print(total_files, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
-            
-def debugnew():
-    l = loader()
-    l.load_from_csv()
-    l.load_from_vott()
-    l.prepare()
-    v = l.one_file(l.train)
-    anc = anchor(2, (96,96))
-    f, x, y = next(v)
-    a = anc.make(x, y)
-    i, b = next(a)
-    l.save_fexif("c:/test/exiv.jpg", i[0], b[0])
-    ii, bb = l.load_exif("c:/test/exiv.jpg")
+        print("FINISH", total_files, "/", total_files, (datetime.datetime.now() - dtstart).total_seconds())
 
-class efficientdet:
+class detection_model:
     def __init__(self, image_shape = (64, 64, 3), detection_region = 2, classes = 1000, backbone = "B0", dropout = 0.2):
         self.m = det.edet(input_shape = image_shape, num_classes = classes, detection_region = detection_region, dropout = dropout, backbone = backbone)
         self.m.compile(optimizer = Adam(learning_rate = 0.01), \
@@ -443,9 +421,6 @@ class efficientdet:
                                           validation_data = test, \
                                           validation_steps = steps // 2, \
                                           verbose = 2)
-                                          #verbose = 2, \
-                                          #callbacks=[callback])
-
         else:
             #RUN WITHOUT TEST BATCH
             callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
@@ -540,7 +515,6 @@ class efficientdet:
         plt.close()        
 
     def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = 0.01, debug = False):
-        #tags = self.c.unique_label
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
         if os.path.splitext(fp)[-1].lower() == ".bmp":
@@ -554,15 +528,23 @@ class efficientdet:
         image = tf.expand_dims(image,0)
         
         raw_image = tf.expand_dims(raw_image, 0)
-        #image = preprocess_func(image.numpy())
 
         anc = anchor(self.anchor_size, crop_size = self.c.image_size)
         anchor_gen = anc.make(image)
-        image_for_predict, bb = anchor_gen.__next__()
-
+        classifier_list = np.array([0])
+        box_prediction_list = np.array([0])
         with tf.device("cpu:0"):
-            image_for_predict = preprocess_func(image_for_predict.numpy())
-            inference = self.m.predict(image_for_predict, verbose = 0)
+            for image_for_predict, bb in anchor_gen:
+                image_for_predict = preprocess_func(image_for_predict.numpy())
+                classifier, box_prediction = self.m.predict(image_for_predict, verbose = 0)
+                if classifier_list.any():
+                    classifier_list = np.append(classifier_list, classifier, 0)
+                    box_prediction_list = np.append(box_prediction_list, box_prediction, 0)
+                else:
+                    classifier_list = classifier
+                    box_prediction_list = box_prediction
+                
+        inference = (classifier_list, box_prediction_list)
     
         if debug:
             debug_grid = tf.image.draw_bounding_boxes(image_for_predict, inference[1], [[255, 0, 0]])
@@ -581,7 +563,6 @@ class efficientdet:
             plt.clf()
             plt.close()
 
-        #return inference, anc
         classifier = tf.argmax(inference[0], axis = -1).numpy()
         arr = np.expand_dims(classifier,-1)
         score = np.take_along_axis(inference[0], arr, 2)[:,:,0]
@@ -712,11 +693,10 @@ class anchor:
                 box.append([x1, y1, x2, y2]) 
         return box
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32):
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
-        #print("self.boxes", self.boxes.shape, self.box_indices.shape)
         crop_iter = iter(zip(self.boxes, self.box_indices))
         BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3 and self.boxes.shape[0] == self.box_indices.shape[0] and self.boxes.shape[0] > 0
         
@@ -726,9 +706,13 @@ class anchor:
         else:
             bb_set_X = False
             bb_set_Y = False
-            image_outputs = tf.image.crop_and_resize(image, self.boxes, self.box_indices, self.crop_size)
-            bounding_box = np.ndarray([image_outputs.shape[0],0, 5])
-            yield image_outputs, bounding_box
+            #RETURN AS ITERATOR BECAUSE ITS SHIT LOAD OF MEMEORY!!
+            for i in range(0, self.boxes.shape[0], max_output_box_nobb):
+                v0 = i 
+                v1 = i + max_output_box_nobb
+                image_outputs = tf.image.crop_and_resize(image, self.boxes[v0 : v1, :], self.box_indices[v0 : v1], self.crop_size)
+                bounding_box = np.ndarray([image_outputs.shape[0],0, 5])
+                yield image_outputs, bounding_box
 
         if BB_NDIMS_CHECK:
             for index, box_value in enumerate(crop_iter):
@@ -783,7 +767,6 @@ class anchor:
                         if image_output.shape[1:] == (self.crop_size[0], self.crop_size[1], c) and bounding_box.shape[2] == 5:
                             yield image_output, bounding_box
 
-  
 def augment(im, bbwc, seq = None):
     im = im[0]
     bbs = BoundingBoxesOnImage([BoundingBox(x1 = n[0], y1 = n[1], x2 = n[2], y2 = n[3], label = n[4]) for n in bbwc[0]], shape = im.shape[:2])
@@ -915,7 +898,7 @@ class load_model:
 
     def initialize(self, do_not_auto_save_tags = False):
         print("initialize model")
-        self.model = efficientdet(image_shape=(self.IMAGE_SIZE, self.IMAGE_SIZE, self.COLOR_CHANNEL), \
+        self.model = detection_model(image_shape=(self.IMAGE_SIZE, self.IMAGE_SIZE, self.COLOR_CHANNEL), \
                                   detection_region = self.REGIONS, \
                                   classes = self.CLASSIFICATION_TAGS, \
                                   backbone = self.BACKBONE,
@@ -1029,7 +1012,7 @@ def from_hex(h):
     return [int(s[:2],16), int(s[2:4], 16), int(s[4:], 16)]
 
 def test_train():
-    e = efficientdet(image_shape=(96,96,3), detection_region = 2, classes = 1000, backbone = "B0")
+    e = detection_model(image_shape=(96,96,3), detection_region = 2, classes = 1000, backbone = "B0")
     e.load_folder(r"C:\Users\CSIPIG0140\Desktop\TRAIN IMAGE\DETECTOR_ALL\DETECTOR_ALL", "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/DETECTOR_ALL/DETECTOR_ALL.pik", 0.7)
     e.train(0.01, 50, 20, 32)
     return e
@@ -1042,6 +1025,19 @@ def save_segmented_image():
 def test():
     m = load_model_by_pik()
     return m
+
+def debugnew():
+    l = loader()
+    l.load_from_csv()
+    l.load_from_vott()
+    l.prepare()
+    v = l.one_file(l.train)
+    anc = anchor(2, (96,96))
+    f, x, y = next(v)
+    a = anc.make(x, y)
+    i, b = next(a)
+    l.save_fexif("c:/test/exiv.jpg", i[0], b[0])
+    ii, bb = l.load_exif("c:/test/exiv.jpg")
 
 def hex2rgb(s):
     if len(s) == 7:
