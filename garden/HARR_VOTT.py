@@ -28,9 +28,9 @@ import warnings
 warnings.filterwarnings("error", category = RuntimeWarning)
 
 try:
-    import efficient_det as det
+    import model as det
 except Exception as e:
-    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "efficient_det.py")
+    SPEC_LOADER = os.path.join(os.path.split(__file__)[0], "model.py")
     spec_name = os.path.splitext(os.path.split(SPEC_LOADER)[-1])[0]
 
     spec = importlib.util.spec_from_file_location(spec_name, SPEC_LOADER)
@@ -63,6 +63,7 @@ class loader:
         self.NULL = 999
         self.SEGMENT_FILES = None
         self.do_not_auto_save_tags = False
+        self.IMAGE_FOLDER = None
 
     def load_from_csv(self, fp = "C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv"):
         column_names = ['folder', 'filename', 'timeseek', 'path', 'label', 'x1', 'y1', 'x2', 'y2', 'color', 'modified_dt']
@@ -193,7 +194,7 @@ class loader:
         e[37510] = ddf.to_json()
         im.save(fp, exif = e)
 
-    def load_exif(self, fp):
+    def load_exif(self, fp, return_boolean = False):
         im = Image.open(fp)
         e = im.getexif()
         try:
@@ -209,14 +210,18 @@ class loader:
                 self.tags = self.tags[["label", "color"]]
                 
             bb = np.array(df[["x1", "y1", "x2", "y2", "tag_indice"]])[df.exist]
-            return fp, np.expand_dims(tf.keras.utils.img_to_array(im), 0), np.expand_dims(bb, 0)
+            if not return_boolean:
+                return fp, np.expand_dims(tf.keras.utils.img_to_array(im), 0), np.expand_dims(bb, 0)
+            else:
+                if bb.shape[0] > 0:
+                    return True
         except ValueError as e:
             print(e)
         return False
 
     def augment_batch(self, im, bb, seq = None):
         IN_VIEW = 0.95
-        MINIMUM_SIZE = 0.07
+        MINIMUM_SIZE = 0.1
         aug_im, aug_bbwc = augment(im, bb, seq)
         w = aug_im.shape[1]
         h = aug_im.shape[0]
@@ -246,21 +251,61 @@ class loader:
         local_label = np.append(local_label, np.expand_dims(np_array[:, 4], -1), 0)
         return aug_im, local_bbox, local_label
 
-    def batch(self, t, batch_size = 32, regions = 5, image_shape = (96, 96, 3), anchor_size = 4, skip_null = 0.5, seq = None):
+    def batch(self, t, batch_size = 32, regions = 5, image_shape = (96, 96, 3), anchor_size = 4, skip_null = 0.5, seq = None, name = None):
+        print("BATCH LEN T >> ", len(t), "NAME:", name)
         running_file = os.path.join(os.path.split(__file__)[0], "running_batch.txt")
         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
         batch_image = np.ndarray([0, image_shape[0], image_shape[1], image_shape[2]], dtype = np.int16)
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         need_anchor = True
+        batch_bb = []
+        batch_no_bb = []
+        split_bb_group = True
+        to_save_bb_list = True
+        skip_null_check = False
+        if type(t) == list:
+            if len(t) == 2:
+                #print(type(t[0]), type(t[1]), len(t[0]), len(t[1]))
+                if type(t[0]) == list and type(t[1]) == list:
+                    batch_bb = t[0]
+                    batch_no_bb = t[1]
+                    split_bb_group = False
+                    to_save_bb_list = False
+                    
         with open(running_file, "w") as fio:
             fio.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            print("running file : ", running_file)
+            #print("running file : ", running_file)
+
         while os.path.isfile(running_file):
+            print("BB >> ", len(batch_bb), len(batch_no_bb))
+            if len(batch_bb) > 0 or len(batch_no_bb) > 0:
+                if to_save_bb_list and self.IMAGE_FOLDER:
+                    pickle_data = [batch_bb, batch_no_bb]
+                    fp = os.path.join(self.IMAGE_FOLDER, "image_group.pik")
+                    with open(fp, "wb") as fio:
+                        print("SAVE PICKLE GROUP >> ", fp)
+                        pickle.dump(pickle_data, fio)
+                        to_save_bb_list = False
+                split_bb_group = False
+                random.shuffle(batch_bb)
+                random.shuffle(batch_no_bb)
+                t = copy.copy(batch_bb)
+                t.extend(batch_no_bb[: int(len(batch_bb) * (1 - skip_null))])
+                random.shuffle(t)
+                print("RUNNING WITH PICKLED GROUP >> ", len(t), " - ", len(batch_bb), type(t))
+                
             if type(t) == pd.DataFrame:
                 iter_of = self.one_file(t)
                 need_anchor = True
             elif type(t) == list:
+                if len(t) == 2:
+                    if type(t[0]) == list and type(t[1]) == list:
+                        if len(t[0]) > 0 or len(t[1]) > 0:
+                            pass
+                        else:
+                            t = []
+                print("ITER >> ", len(t), " SPLIT BB >> ", split_bb_group)
                 iter_of = self.one_file_exif(t)
                 need_anchor = False
             else:
@@ -270,8 +315,14 @@ class loader:
                     iter_anc = anc.make(im, bb)
                 else:
                     iter_anc = [[im, bb]]
+                    if split_bb_group:
+                        if bb.shape[1] == 0:
+                            batch_no_bb.append(fp)
+                        else:
+                            batch_bb.append(fp)
+                            
                 for ni, nb in iter_anc:
-                    if nb.shape[1] == 0:
+                    if nb.shape[1] == 0 and not skip_null_check:
                         rng = random.random()
                         if rng < skip_null:
                             continue
@@ -286,7 +337,7 @@ class loader:
 
                     ni = preprocess_func(ni)
                     aug_im, aug_bb, aug_lb = self.augment_batch(ni, nb, seq)
-                    if aug_bb.shape[0] == 0:
+                    if aug_bb.shape[0] == 0 and not skip_null_check:
                         rng = random.random()
                         if rng < skip_null:
                             continue        
@@ -309,9 +360,28 @@ class loader:
                         batch_image = np.ndarray([0, image_shape[0], image_shape[1], image_shape[2]], dtype = np.int16)
                         
     def exif_prepare(self, fol = "C:/test/fractured_img", tagfile = 'C:/test/tags.pik', frac = 0.7):
+        self.IMAGE_FOLDER = fol
+        load_pik_fp = os.path.join(fol, "image_group.pik")
         fs = os.listdir(fol)
         fs = [os.path.join(fol, n) for n in fs if os.path.splitext(n)[1] == ".jpg"]
         fs = [n for n in fs if os.path.isfile(n)]
+        if os.path.isfile(load_pik_fp):
+            with open(load_pik_fp, "rb") as fio:
+                loaded_pik_group = pickle.load(fio)
+            img_bb = loaded_pik_group[0]
+            img_no_bb = loaded_pik_group[1]
+            print("IMAGE FILES", len(fs), " -- ", len(img_bb), " - ", len(img_no_bb))
+            if len(fs) == len(img_bb) + len(img_no_bb):
+                print("RUN WITH GROUPED IMAGE")
+                if frac != 0 or frac != 1.0:
+                    self.train = [img_bb[: int(len(img_bb) * frac)], img_no_bb[: int(len(img_no_bb) * frac)]]
+                    self.test = [img_bb[int(len(img_bb) * frac) : ], img_no_bb[int(len(img_no_bb) * frac) : ]]
+                else:
+                    self.train = [img_bb, img_no_bb]
+                    self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
+                return True
+            else:
+                pass
         random.shuffle(fs)
         self.SEGMENT_FILES = fs
         self.setup_tags(tagfile, nosave = self.do_not_auto_save_tags)
@@ -323,6 +393,7 @@ class loader:
         else:
             self.train = fs
             self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
+        return True
             
     def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None, with_labels_only = False):
         print("SAVE SEGMENT WITH ANCHOR LV: ", anchor_size)
@@ -381,13 +452,15 @@ class detection_model:
         
     def train(self, learning_rate = 0.001, epoch = 10, steps = 10, batch_size = 32, skip_null = 0.5, augment_seq = None, callback_earlystop = False):
         self.m.optimizer.learning_rate = learning_rate
+        print("PREPARE TRAIN BATCH")
         train = self.c.batch(self.c.train, \
                              batch_size = batch_size, \
                              regions = self.regions, \
                              image_shape = self.image_shape, \
                              anchor_size = self.anchor_size, \
                              skip_null = skip_null, \
-                             seq = augment_seq)
+                             seq = augment_seq, \
+                             name = "TRAIN")
         test_alive = False
         if type(self.c.test) == pd.DataFrame:
             if self.c.test.source.count() > 0:
@@ -395,16 +468,21 @@ class detection_model:
         elif type(self.c.test) == list:
             if len(self.c.test) > 0:
                 test_alive = True
+                if len(self.c.test) == 2:
+                    if type(self.c.test[0]) == list and type(self.c.test[1]) == list:
+                        test_alive = False
         if test_alive:
             #TEST BATCH IS AVAILABLE.
             callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
+            print("PREPARE TEST BATCH")
             test = self.c.batch(self.c.test, \
                                 batch_size = batch_size, \
                                 regions = self.regions, \
                                 image_shape = self.image_shape, \
                                 anchor_size = self.anchor_size, \
                                 skip_null = skip_null, \
-                                seq = augment_seq)
+                                seq = augment_seq, \
+                                name = "TEST")
             if callback_earlystop:
                 print("TRAIN WITH CALLBACK EARLYSTOP")
                 self.history = self.m.fit(train, \
@@ -425,13 +503,14 @@ class detection_model:
             #RUN WITHOUT TEST BATCH
             callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
             if callback_earlystop:
-                print("TRAIN WITH CALLBACK EARLYSTOP")
+                print("TRAIN WITH CALLBACK EARLYSTOP NO TEST BATCH")
                 self.history = self.m.fit(train, \
                                           epochs = epoch, \
                                           steps_per_epoch = steps, \
                                           verbose = 2, \
                                           callbacks=[callback])
             else:
+                print("TRAIN WITHOUT TEST BATCH")
                 self.history = self.m.fit(train, \
                                           epochs = epoch, \
                                           steps_per_epoch = steps, \
@@ -454,9 +533,9 @@ class detection_model:
         if 'sanity_check_sample' in dir(self):
             del(self.sanity_check_sample)
         
-    def sanity_check(self, batch_size = 36, skip_null = 0.7):
+    def sanity_check(self, batch_size = 36, skip_null = 0.7, seq = None):
         if 'sanity_check_sample' not in dir(self):
-            self.sanity_check_sample = self.c.batch(self.c.train, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = skip_null)            
+            self.sanity_check_sample = self.c.batch(self.c.train, batch_size = batch_size, regions = self.regions, image_shape = self.image_shape, anchor_size = self.anchor_size, skip_null = skip_null, seq = seq)
         x,(y,z) = next(self.sanity_check_sample)
         if np.max(x) <= 1.0:
             x = x * 255
@@ -971,8 +1050,8 @@ class load_model:
         except Exception as e:
             print(e)
 
-    def generator_check(self, batch_size = 36, skip_null = 0.7):
-        self.model.sanity_check(batch_size, skip_null)
+    def generator_check(self, batch_size = 36, skip_null = 0.7, seq = None):
+        self.model.sanity_check(batch_size, skip_null, seq)
 
     def sanity_check(self):
         self.model.sanity_check()

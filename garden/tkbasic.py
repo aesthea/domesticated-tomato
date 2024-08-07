@@ -1175,10 +1175,12 @@ class widget:
                     if messagebox.askyesno(title="segment", message="sanity check with segmented images?"):
                         self.DET_MODEL.model.load_folder(self.data["savefile"], self.data["savefile"] + ".pik", self.data["trainsize"])
                         self.DET_MODEL.model.sanity_check(batch_size = self.value_type(self.inputs["batchsize"], int), \
-                                                          skip_null = self.value_type(self.inputs["nullskip"], float))
+                                                          skip_null = self.value_type(self.inputs["nullskip"], float), \
+                                                          seq = self.value_type(self.inputs["augment"], int))
                         return True
         self.DET_MODEL.generator_check(batch_size = self.value_type(self.inputs["batchsize"], int), \
-                                       skip_null = self.value_type(self.inputs["nullskip"], float))
+                                       skip_null = self.value_type(self.inputs["nullskip"], float), \
+                                       seq = self.value_type(self.inputs["augment"], int))
 
     def predict_image(self):
         self.update()
