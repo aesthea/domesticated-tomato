@@ -221,7 +221,7 @@ class loader:
 
     def augment_batch(self, im, bb, seq = None):
         IN_VIEW = 0.95
-        MINIMUM_SIZE = 0.1
+        MINIMUM_SIZE = 0.03
         aug_im, aug_bbwc = augment(im, bb, seq)
         w = aug_im.shape[1]
         h = aug_im.shape[0]
@@ -593,7 +593,7 @@ class detection_model:
         plt.clf()
         plt.close()        
 
-    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = 0.01, debug = False):
+    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = 0.01, debug = False, save_to_test = False):
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
         if os.path.splitext(fp)[-1].lower() == ".bmp":
@@ -648,7 +648,7 @@ class detection_model:
 
         score = score[np.where(classifier < self.c.tags.index.stop)]
         inference_bb = inference[1][np.where(classifier < self.c.tags.index.stop)]
-        anchor_crop = anc.boxes.numpy()[np.where(classifier < self.c.tags.index.stop)[0]]
+        anchor_crop = anc.boxes[np.where(classifier < self.c.tags.index.stop)[0]]
         classifier_index = classifier[np.where(classifier < self.c.tags.index.stop)]
         tags = self.c.tags.iloc[classifier[np.where(classifier < self.c.tags.index.stop)]]
         tags.index = range(tags.count().label)
@@ -702,6 +702,15 @@ class detection_model:
         original_im = tf.keras.preprocessing.image.array_to_img(image[0])
         return im, original_im, prediction_result
 
+def read_image(fp):
+    raw_image = tf.io.read_file(fp)
+    if os.path.splitext(fp)[-1].lower() == ".bmp":
+        raw_image = tf.image.decode_bmp(raw_image, channels=3)
+    else:
+        raw_image = tf.image.decode_jpeg(raw_image, channels=3)
+    image = tf.expand_dims(raw_image,0)
+    return image
+        
 class anchor:
     def __init__(self, anchor_level = 2, crop_size = (128, 128)):
         self.anchor_level = anchor_level
@@ -720,7 +729,7 @@ class anchor:
         for i in range(level + 1):
             b.append(tf.constant(self.generate_box(i, ratio)))
         b = tf.concat(b, 0)
-        self.boxes = tf.concat([boxes, b], 0)
+        self.boxes = np.unique(tf.concat([boxes, b], 0), axis = 0)
         self.box_indices = tf.zeros(shape=(self.boxes.shape[0],), dtype = "int32")
         
     def generate_box(self, anc_lvl, ratio, border = 0.01):
@@ -776,8 +785,17 @@ class anchor:
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
-        crop_iter = iter(zip(self.boxes, self.box_indices))
-        BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3 and self.boxes.shape[0] == self.box_indices.shape[0] and self.boxes.shape[0] > 0
+        MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > self.crop_size[1],  (self.boxes[:, 3] - self.boxes[:, 1]) * w > self.crop_size[0]], 0)
+        BOXES = self.boxes[MASK]
+        BOX_INDICES = self.box_indices[MASK]
+        if not BOXES.shape[0]:
+            BOXES = self.boxes[:9]
+            BOX_INDICES = self.box_indices[: 9]
+        #print("anchor.make", BOXES.shape)
+        self.boxes = BOXES
+        crop_iter = iter(zip(BOXES, BOX_INDICES))
+        BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3 and BOXES.shape[0] == BOX_INDICES.shape[0] and BOXES.shape[0] > 0
+        # ADD IN REMOVE BOXES WHERE IMAGE WILL BE HALF OF THE OUTPUT SIZE
         
         if BB_NDIMS_CHECK:
             bb_set_X = bounding_box_with_class[:,:,2] - bounding_box_with_class[:,:,0]
@@ -786,10 +804,10 @@ class anchor:
             bb_set_X = False
             bb_set_Y = False
             #RETURN AS ITERATOR BECAUSE ITS SHIT LOAD OF MEMEORY!!
-            for i in range(0, self.boxes.shape[0], max_output_box_nobb):
+            for i in range(0, BOXES.shape[0], max_output_box_nobb):
                 v0 = i 
                 v1 = i + max_output_box_nobb
-                image_outputs = tf.image.crop_and_resize(image, self.boxes[v0 : v1, :], self.box_indices[v0 : v1], self.crop_size)
+                image_outputs = tf.image.crop_and_resize(image, BOXES[v0 : v1, :], BOX_INDICES[v0 : v1], self.crop_size)
                 bounding_box = np.ndarray([image_outputs.shape[0],0, 5])
                 yield image_outputs, bounding_box
 
@@ -810,7 +828,7 @@ class anchor:
                     continue
 
                 for image_output in image_outputs:
-                    box_tf = self.boxes[index]
+                    box_tf = BOXES[index]
                     bounding_box = np.ndarray([1,0, 5])
                     bounding_box_concat = np.ndarray([1,0, 5])
                     y1, x1, y2, x2 = box_tf * [h, w, h, w]
@@ -1002,7 +1020,12 @@ class load_model:
         self.action = "predict"
         im, original_im, result_rawdata = self.model.predict(fp, nms_iou = self.NON_MAX_SUPPRESSION_IOU)
         if show:
-            im.show()
+            plt.imshow(im)
+            plt.axis('off')
+            plt.show()
+            plt.clf()
+            plt.close()
+            #im.show()
         if rawdata:
             return im, result_rawdata
         else:
