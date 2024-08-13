@@ -221,7 +221,7 @@ class loader:
 
     def augment_batch(self, im, bb, seq = None):
         IN_VIEW = 0.95
-        MINIMUM_SIZE = 0.03
+        MINIMUM_SIZE = 0.10
         aug_im, aug_bbwc = augment(im, bb, seq)
         w = aug_im.shape[1]
         h = aug_im.shape[0]
@@ -362,9 +362,8 @@ class loader:
     def exif_prepare(self, fol = "C:/test/fractured_img", tagfile = 'C:/test/tags.pik', frac = 0.7):
         self.IMAGE_FOLDER = fol
         load_pik_fp = os.path.join(fol, "image_group.pik")
-        fs = os.listdir(fol)
-        fs = [os.path.join(fol, n) for n in fs if os.path.splitext(n)[1] == ".jpg"]
-        fs = [n for n in fs if os.path.isfile(n)]
+        fs = os.scandir(fol)
+        fs = [n.path for n in fs if os.path.splitext(n.name)[1] == ".jpg" and n.is_file()]
         if os.path.isfile(load_pik_fp):
             with open(load_pik_fp, "rb") as fio:
                 loaded_pik_group = pickle.load(fio)
@@ -1080,8 +1079,9 @@ class load_model:
         self.model.sanity_check()
 
     def folder_check(self, folder):
-        images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") and os.path.isfile(os.path.join(folder, f)), os.listdir(folder))
-        images = [n for n in images]
+        #images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") and os.path.isfile(os.path.join(folder, f)), os.listdir(folder))
+        #images = [n for n in images]
+        images = [n.path for n in os.scandir(folder) if os.path.splitext(n.name)[1] in (".jpg", ".png", ".bmp") and n.is_file()]
         max_len = 36
         len_images = len(images)
         if len_images < 1:
