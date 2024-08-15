@@ -24,6 +24,9 @@ from io import BytesIO
 #SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024b/HARR_VOTT.py"
 SPEC_LOADER = None
 
+READ_LIMIT = 2**21
+MAX_SIZE = 2**22
+
 if not SPEC_LOADER:
     import HARR_VOTT
     PIK = "tkpik.pik"
@@ -193,7 +196,11 @@ def run(PORT = PORT):
         load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
         if not PORT:
             PORT = int(data['port'])
-        start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
+        start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), \
+                                           port = PORT, \
+                                           max_size = MAX_SIZE, \
+                                           read_limit = READ_LIMIT, \
+                                           write_limit = READ_LIMIT)
         print("RUN DATA %s SERVER" % PORT)
         asyncio.get_event_loop().run_until_complete(start_server_00)
         asyncio.get_event_loop().run_forever()
@@ -211,7 +218,11 @@ if __name__ == "__main__":
             load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
             if not PORT:
                 PORT = int(data['port'])
-            start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), port = PORT)
+            start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), \
+                                               port = PORT, \
+                                               max_size = MAX_SIZE, \
+                                               read_limit = READ_LIMIT, \
+                                               write_limit = READ_LIMIT)
             print("RUN DATA %s SERVER" % PORT)     
             asyncio.get_event_loop().run_until_complete(start_server_00)
             asyncio.get_event_loop().run_forever()

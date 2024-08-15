@@ -541,6 +541,10 @@ class widget:
         self.input_size_radio4 = Radiobutton(self.input_size_frame, text="320", variable = self.input_size, value = 320, font = self.small_font, command = self.update)
         self.input_size_radio4.grid(column = 5, row = 0)
 
+        self.input_size_radio2["state"] = "disabled"
+        self.input_size_radio3["state"] = "disabled"
+        self.input_size_radio4["state"] = "disabled"
+
         self.label(self.frame3, 300, 25, 4, 1, "Color channel")
         self.color_channel_frame = Frame(master = self.frame3, width = 300, height = 25)
         self.color_channel_frame.grid_propagate(0)
@@ -622,11 +626,23 @@ class widget:
         if "learning_rate" in self.data:
             if self.data["learning_rate"]:
                 self.inputs["learning_rate"].set(self.data["learning_rate"])
-
+            else:
+                self.inputs["learning_rate"].set(0.01)
+                self.data["learning_rate"] = 0.01
+        else:
+            self.inputs["learning_rate"].set(0.01)
+            self.data["learning_rate"] = 0.01
+                
         if "steps" in self.data:
-            if self.data["steps"]:
+            if self.data["steps"] or self.data["steps"] == 0:
                 self.inputs["steps"].set(self.data["steps"])
-            
+            else:
+                self.inputs["steps"].set(10)
+                self.data["steps"] = 10
+        else:
+            self.inputs["steps"].set(10)
+            self.data["steps"] = 10
+                
         if "anchor" in self.data:
             if self.data["anchor"] or self.data["anchor"] == 0:
                 self.inputs["anchor"].set(self.data["anchor"])
@@ -641,11 +657,11 @@ class widget:
             if self.data["nullskip"] or self.data["nullskip"] == 0:
                 self.inputs["nullskip"].set(self.data["nullskip"])
             else:
-                self.inputs["nullskip"].set(0.3)
-                self.data["nullskip"] = 0.3
+                self.inputs["nullskip"].set(0.0)
+                self.data["nullskip"] = 0.0
         else:
-            self.inputs["nullskip"].set(0.3)
-            self.data["nullskip"] = 0.3
+            self.inputs["nullskip"].set(0.0)
+            self.data["nullskip"] = 0.0
 
         if "dropout" in self.data:
             if self.data["dropout"] or self.data["dropout"] == 0:
@@ -671,11 +687,11 @@ class widget:
             if self.data["trainsize"]:
                 self.inputs["trainsize"].set(self.data["trainsize"])
             else:
-                self.inputs["trainsize"].set(0.7)
-                self.data["trainsize"] = 0.7
+                self.inputs["trainsize"].set(1.0)
+                self.data["trainsize"] = 1.0
         else:
-            self.inputs["trainsize"].set(0.7)
-            self.data["trainsize"] = 0.7
+            self.inputs["trainsize"].set(1.0)
+            self.data["trainsize"] = 1.0
 
         if "huber" in self.data:
             if self.data["huber"] or self.data["huber"] == 0:
@@ -691,11 +707,11 @@ class widget:
             if self.data["backbone"]:
                 self.backbone.set(self.data["backbone"])
             else:
-                self.backbone.set("B1")
-                self.data["backbone"] = "B1"
+                self.backbone.set("B0")
+                self.data["backbone"] = "B0"
         else:
-            self.backbone.set("B1")
-            self.data["backbone"] = "B1"
+            self.backbone.set("B0")
+            self.data["backbone"] = "B0"
                 
 
         if "fpn_mode" in self.data:
@@ -712,11 +728,11 @@ class widget:
             if self.data["input_size"]:
                 self.input_size.set(self.data["input_size"])
             else:
-                self.input_size.set(256)
-                self.data["input_size"] = 256
+                self.input_size.set(64)
+                self.data["input_size"] = 64
         else:
-            self.input_size.set(256)
-            self.data["input_size"] = 256
+            self.input_size.set(64)
+            self.data["input_size"] = 64
 
         if "tags" in self.data:
             if self.data["tags"]:
@@ -807,26 +823,6 @@ class widget:
         else:
             self.inputs["random_drop"].set(0.2)
             self.data["random_drop"] = 0.2
-
-        if "steps" in self.data:
-            if self.data["steps"] or self.data["steps"] == 0:
-                self.inputs["steps"].set(self.data["steps"])
-            else:
-                self.inputs["steps"].set(20)
-                self.data["steps"] = 20
-        else:
-            self.inputs["steps"].set(20)
-            self.data["steps"] = 20
-
-        if "learning_rate" in self.data:
-            if self.data["learning_rate"]:
-                self.inputs["learning_rate"].set(self.data["learning_rate"])
-            else:
-                self.inputs["learning_rate"].set(0.001)
-                self.data["learning_rate"] = 0.001
-        else:
-            self.inputs["learning_rate"].set(0.001)
-            self.data["learning_rate"] = 0.001
         
         self.update()
         

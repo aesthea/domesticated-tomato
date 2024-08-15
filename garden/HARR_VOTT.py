@@ -263,10 +263,11 @@ class loader:
         batch_no_bb = []
         split_bb_group = True
         to_save_bb_list = True
-        skip_null_check = False
+        no_skip_null_check = False
+        if skip_null >= 1:
+            no_skip_null_check = True
         if type(t) == list:
             if len(t) == 2:
-                #print(type(t[0]), type(t[1]), len(t[0]), len(t[1]))
                 if type(t[0]) == list and type(t[1]) == list:
                     batch_bb = t[0]
                     batch_no_bb = t[1]
@@ -275,10 +276,8 @@ class loader:
                     
         with open(running_file, "w") as fio:
             fio.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            #print("running file : ", running_file)
 
         while os.path.isfile(running_file):
-            print("BB >> ", len(batch_bb), len(batch_no_bb))
             if len(batch_bb) > 0 or len(batch_no_bb) > 0:
                 if to_save_bb_list and self.IMAGE_FOLDER:
                     pickle_data = [batch_bb, batch_no_bb]
@@ -293,7 +292,6 @@ class loader:
                 t = copy.copy(batch_bb)
                 t.extend(batch_no_bb[: int(len(batch_bb) * (1 - skip_null))])
                 random.shuffle(t)
-                print("RUNNING WITH PICKLED GROUP >> ", len(t), " - ", len(batch_bb), type(t))
                 
             if type(t) == pd.DataFrame:
                 iter_of = self.one_file(t)
@@ -305,7 +303,7 @@ class loader:
                             pass
                         else:
                             t = []
-                print("ITER >> ", len(t), " SPLIT BB >> ", split_bb_group)
+                print("ITER >> ", len(batch_bb), " / ", len(t), " SEGREGATE IMG.BB >> ", split_bb_group)
                 iter_of = self.one_file_exif(t)
                 need_anchor = False
             else:
@@ -322,7 +320,7 @@ class loader:
                             batch_bb.append(fp)
                             
                 for ni, nb in iter_anc:
-                    if nb.shape[1] == 0 and not skip_null_check:
+                    if nb.shape[1] == 0 and not no_skip_null_check:
                         rng = random.random()
                         if rng < skip_null:
                             continue
@@ -337,7 +335,7 @@ class loader:
 
                     ni = preprocess_func(ni)
                     aug_im, aug_bb, aug_lb = self.augment_batch(ni, nb, seq)
-                    if aug_bb.shape[0] == 0 and not skip_null_check:
+                    if aug_bb.shape[0] == 0 and not no_skip_null_check:
                         rng = random.random()
                         if rng < skip_null:
                             continue        
