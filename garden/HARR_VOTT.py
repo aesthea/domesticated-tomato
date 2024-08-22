@@ -590,7 +590,8 @@ class detection_model:
         plt.clf()
         plt.close()        
 
-    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = 0.01, debug = False, save_to_test = False):
+    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = None, debug = False, save_to_test = False, anchor_size = None, image_size = None):
+        #print("DEBUG 594", nms_iou, anchor_size, image_size)
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
         if os.path.splitext(fp)[-1].lower() == ".bmp":
@@ -605,12 +606,23 @@ class detection_model:
         
         raw_image = tf.expand_dims(raw_image, 0)
 
-        anc = anchor(self.anchor_size, crop_size = self.c.image_size)
+        if not nms_iou:
+            nms_iou = 0.001
+        if anchor_size:
+            ANCHOR_SZ = anchor_size
+        else:
+            ANCHOR_SZ = self.anchor_size
+        if image_size:
+            IMAGE_SZ = image_size
+        else:
+            IMAGE_SZ = self.c.image_size
+        anc = anchor(ANCHOR_SZ, crop_size = IMAGE_SZ)
         anchor_gen = anc.make(image)
         classifier_list = np.array([0])
         box_prediction_list = np.array([0])
         with tf.device("cpu:0"):
             for image_for_predict, bb in anchor_gen:
+                image_for_predict = tf.image.resize(image_for_predict, self.m.input.shape[1:3])
                 image_for_predict = preprocess_func(image_for_predict.numpy())
                 classifier, box_prediction = self.m.predict(image_for_predict, verbose = 0)
                 if classifier_list.any():
@@ -712,8 +724,13 @@ class anchor:
     def __init__(self, anchor_level = 2, crop_size = (128, 128)):
         self.anchor_level = anchor_level
         self.prepare_box(anchor_level)
-        self.crop_size = crop_size
-
+        if type(crop_size) in (list, tuple):
+            self.crop_size = crop_size
+        elif type(crop_size) == int:
+            self.crop_size = (crop_size, crop_size)
+        else:
+            self.crop_size = (128, 128)
+            
     def prepare_box(self, level = 2, ratio = 1.0):
         if ratio > 1:
             x = (1 / ratio) / 2
@@ -724,65 +741,113 @@ class anchor:
         boxes = tf.constant([[0.5 - x, 0.5 - y, 0.5 + x , 0.5 + y]])
         b = []
         for i in range(level + 1):
-            b.append(tf.constant(self.generate_box(i, ratio)))
+            bx = tf.constant(self.generate_box(i, ratio))
+            b.append(bx)
         b = tf.concat(b, 0)
         self.boxes = np.unique(tf.concat([boxes, b], 0), axis = 0)
         self.box_indices = tf.zeros(shape=(self.boxes.shape[0],), dtype = "int32")
         
     def generate_box(self, anc_lvl, ratio, border = 0.01):
+        anc_lvl += 1
         box = []
-        box_expanded_size = 1.5
-        if ratio >= 1.0:
-            hs = anc_lvl + 1
-            ws = math.ceil(ratio + anc_lvl)
-            wr = 1 / ratio
-            hr = 1
+        if ratio > 1:
+            STANDARD_X = 100 * ratio * anc_lvl
+            STANDARD_Y = 100 * anc_lvl
+        elif ratio < 1:
+            STANDARD_X = 100 * anc_lvl
+            STANDARD_Y = 100 / ratio * anc_lvl
         else:
-            if ratio != 0:
-                anr = anc_lvl + 1 / ratio
+            STANDARD_X = 100 * anc_lvl
+            STANDARD_Y = 100 * anc_lvl
+        DIVIDE_V = 100
+        CELL_Y = math.ceil(STANDARD_Y / DIVIDE_V)
+        CELL_X = math.ceil(STANDARD_X / DIVIDE_V)
+        if CELL_X - 1 > 0:
+            X_OVERFLOW_SUBTR = (((CELL_X * DIVIDE_V) / STANDARD_X) - 1) / (CELL_X - 1)
+        else:
+            X_OVERFLOW_SUBTR = 0
+        if CELL_Y - 1 > 0:
+            Y_OVERFLOW_SUBTR = (((CELL_Y * DIVIDE_V) / STANDARD_Y) - 1) / (CELL_Y - 1)
+        else:
+            Y_OVERFLOW_SUBTR = 0
+        FIRST_BLOCK_X = DIVIDE_V / STANDARD_X
+        FIRST_BLOCK_Y = DIVIDE_V / STANDARD_Y
+        for x in range(CELL_X):
+            if x == 0:
+                x1 = 0
+                x2 = FIRST_BLOCK_X
             else:
-                anr = 1
-            hs = math.ceil(anr)
-            ws = anc_lvl + 1
-            wr = 1
-            hr = 1 * ratio
-        boxshape = np.zeros([hs, ws])
-        if anc_lvl > 0:
-            wr = (box_expanded_size * wr) / (anc_lvl + 1)
-            hr = (box_expanded_size * hr) / (anc_lvl + 1)
-        else:
-            wr = wr / (anc_lvl + 1)
-            hr = hr / (anc_lvl + 1)
-        for h in range(hs):
-            for w in range(ws):
-                mw = wr / 2
-                mh = hr / 2
-                pw = ((w / ws) + ((w + 1) / ws)) / 2
-                ph = ((h / hs) + ((h + 1) / hs)) / 2
-                x1 = pw - mw
-                x2 = pw + mw
-                if x1 < 0:
-                    x2 = x2 - x1
-                    x1 = 0.0
-                if x2 > 1:
-                    x1 = x1 - (x2 - 1)
-                    x2 = 1.0
-                y1 = ph - mh
-                y2 = ph + mh
-                if y1 < 0:
-                    y2 = y2 - y1
-                    y1 = 0.0
-                if y2 > 1:
-                    y1 = y1 - (y2 - 1)
-                    y2 = 1.0
-                box.append([x1, y1, x2, y2]) 
+                x2 = x1 - X_OVERFLOW_SUBTR + FIRST_BLOCK_X
+            for y in range(CELL_Y):
+                if y == 0:
+                    y1 = 0
+                    y2 = FIRST_BLOCK_Y
+                else:
+                    y2 = y1 - Y_OVERFLOW_SUBTR + FIRST_BLOCK_Y
+                block_box = [x1, y1, x2, y2]
+                box.append(block_box)
+                y1 = y2
+            x1 = x2
+                
+                
+        
+##        if ratio >= 1:
+##            npbox = np.zeros((round(anc_lvl * ratio), anc_lvl))
+##        if ratio < 1:
+##            npbox = np.zeros((anc_lvl, round(anc_lvl / ratio)))
+##        box = []
+##        box_expanded_size = 1.5
+##        if ratio >= 1.0:
+##            hs = anc_lvl + 1
+##            ws = math.ceil(ratio + anc_lvl)
+##            wr = 1 / ratio
+##            hr = 1
+##        else:
+##            if ratio != 0:
+##                anr = anc_lvl + 1 / ratio
+##            else:
+##                anr = 1
+##            hs = math.ceil(anr)
+##            ws = anc_lvl + 1
+##            wr = 1
+##            hr = 1 * ratio
+##        boxshape = np.zeros([hs, ws])
+##        if anc_lvl > 0:
+##            wr = (box_expanded_size * wr) / (anc_lvl + 1)
+##            hr = (box_expanded_size * hr) / (anc_lvl + 1)
+##        else:
+##            wr = wr / (anc_lvl + 1)
+##            hr = hr / (anc_lvl + 1)
+##        for h in range(hs):
+##            for w in range(ws):
+##                mw = wr / 2
+##                mh = hr / 2
+##                pw = ((w / ws) + ((w + 1) / ws)) / 2
+##                ph = ((h / hs) + ((h + 1) / hs)) / 2
+##                x1 = pw - mw
+##                x2 = pw + mw
+##                if x1 < 0:
+##                    x2 = x2 - x1
+##                    x1 = 0.0
+##                if x2 > 1:
+##                    x1 = x1 - (x2 - 1)
+##                    x2 = 1.0
+##                y1 = ph - mh
+##                y2 = ph + mh
+##                if y1 < 0:
+##                    y2 = y2 - y1
+##                    y1 = 0.0
+##                if y2 > 1:
+##                    y1 = y1 - (y2 - 1)
+##                    y2 = 1.0
+##                box.append([x1, y1, x2, y2]) 
         return box
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32, segment_min_ratio = 0.75):
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
-        MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > self.crop_size[1],  (self.boxes[:, 3] - self.boxes[:, 1]) * w > self.crop_size[0]], 0)
+        MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > self.crop_size[1] * segment_min_ratio,  (self.boxes[:, 3] - self.boxes[:, 1]) * w > self.crop_size[0] * segment_min_ratio], 0)
         BOXES = self.boxes[MASK]
         BOX_INDICES = self.box_indices[MASK]
         if not BOXES.shape[0]:
@@ -1013,9 +1078,15 @@ class load_model:
         self.model.prepare(self.SAVENAME + ".pik", self.TRAIN_SIZE)
         self.action = None
 
-    def predict(self, fp, show = True, rawdata = False, debug = False):
+    def predict(self, fp, show = True, rawdata = False, debug = False, nms_iou = None, anchor_size = None, image_size = None):
+        #print("DEBUG 1029", nms_iou, anchor_size, image_size)
         self.action = "predict"
-        im, original_im, result_rawdata = self.model.predict(fp, nms_iou = self.NON_MAX_SUPPRESSION_IOU)
+        if not nms_iou:
+            nms_iou = self.NON_MAX_SUPPRESSION_IOU
+        im, original_im, result_rawdata = self.model.predict(fp, \
+                                                             nms_iou = nms_iou, \
+                                                             anchor_size = anchor_size, \
+                                                             image_size = image_size)
         if show:
             plt.imshow(im)
             plt.axis('off')
@@ -1034,7 +1105,13 @@ class load_model:
             self.model.prepare(self.SAVENAME + ".pik", 1)
         else:
             self.model.prepare(self.SAVENAME + ".pik", self.TRAIN_SIZE)
-        self.model.train(learning_rate = LR, epoch = EPOCHS, steps = STEPS, batch_size = self.BATCH_SIZE, skip_null = self.NULL_SKIP, augment_seq = self.AUGMENT, callback_earlystop = early_stopping)
+        self.model.train(learning_rate = LR, \
+                         epoch = EPOCHS, \
+                         steps = STEPS, \
+                         batch_size = self.BATCH_SIZE, \
+                         skip_null = self.NULL_SKIP, \
+                         augment_seq = self.AUGMENT, \
+                         callback_earlystop = early_stopping)
         if save_on_end:
             self.model.save(self.SAVENAME)
         return True
@@ -1049,7 +1126,10 @@ class load_model:
         for fp in self.vott_available_paths:
             self.model.load_vott(fp)
         self.model.prepare(self.SAVENAME + ".pik", 1.0)
-        self.model.c.save_as_segment_image(self.SAVENAME, image_shape = (128, 128, 3), anchor_size = int(self.ANCHOR_LEVEL), tagfile = self.SAVENAME + ".pik")
+        self.model.c.save_as_segment_image(self.SAVENAME, \
+                                           image_shape = (128, 128, 3), \
+                                           anchor_size = int(self.ANCHOR_LEVEL), \
+                                           tagfile = self.SAVENAME + ".pik")
 
     def save(self, f = None):
         self.action = "save"
