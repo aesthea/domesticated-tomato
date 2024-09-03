@@ -96,6 +96,7 @@ class widget:
             return None
 
     def serve_model_button(self):
+        self.root.withdraw()
         tk_socket_server.run()
 
     def numerical_set(self, input_name, value, integer = False):
@@ -1040,7 +1041,11 @@ class widget:
             self.DET_MODEL.model.load_vott(fp)
         self.DET_MODEL.model.prepare(self.data["savefile"] + ".pik", 1.0)
         anc = self.value_type(self.inputs["anchor"], int)
-        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], image_shape = (128, 128, 3), anchor_size = anc, tagfile = self.data["savefile"] + ".pik", with_labels_only = WITH_LABELS_ONLY)
+        self.DET_MODEL.model.c.save_as_segment_image(self.data["savefile"], \
+                                                     image_shape = (128, 128, 3), \
+                                                     anchor_size = anc, \
+                                                     tagfile = self.data["savefile"] + ".pik", \
+                                                     with_labels_only = WITH_LABELS_ONLY)
         return True
     
     def train_with_segment(self, early_stopping = False):
@@ -1286,5 +1291,11 @@ def test():
 
 
 if __name__ == "__main__":
-    w = run()
+    runwidget = True
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "-serve":
+            tk_socket_server.run()
+            runwidget = False
+    if runwidget:
+        w = run()
     #pass

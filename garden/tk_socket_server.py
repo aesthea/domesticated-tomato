@@ -21,7 +21,7 @@ from io import BytesIO
 
 
 
-#SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024b/HARR_VOTT.py"
+#SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/DETECTOR_ALL/HARR_VOTT.py"
 SPEC_LOADER = None
 
 READ_LIMIT = 2**21
@@ -37,14 +37,14 @@ else:
     HARR_VOTT = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(HARR_VOTT)
     PIK = os.path.join(os.path.split(SPEC_LOADER)[0], "tkpik.pik")
-    PORT = 8790
+    PORT = 8860
 
 if not os.path.isdir("c:/test"):
     os.mkdir("c:/test")
 
 warnings.filterwarnings("ignore") 
 CONNECTED = set()
-async def handler(websocket, path, predict, port_no):
+async def handler(websocket, path, model, port_no):
     print(path)
     try:
         async for rawdata in websocket:
@@ -68,7 +68,18 @@ async def handler(websocket, path, predict, port_no):
                 if "args" in data:
                     if "server" in data["args"]:
                         if "load_weight" in data["args"]["server"]:
-                            load_model()
+                            #load_model()
+                            model.load(model.LOADPATH)
+                    if "anchor_size" in data["args"]:
+                        result["anchor_size"] = data["args"]["anchor_size"]
+                    if "nms_iou" in data["args"]:
+                        result["nms_iou"] = data["args"]["nms_iou"]
+                    if "image_size" in data["args"]:
+                        result["image_size"] = data["args"]["image_size"]
+                    if "image_format" in data["args"]:
+                        result["image_format"] = data["args"]["image_format"]
+                    if "segment_minimum_ratio" in data["args"]:
+                        result["segment_minimum_ratio"] = data["args"]["segment_minimum_ratio"]
                     result["args"] = data["args"]
                     
                 if "filename" in data and "base64" in data:
@@ -83,25 +94,80 @@ async def handler(websocket, path, predict, port_no):
                     if "tensorflow"  in data:
                         if data["tensorflow"] and ext.lower() in (".bmp", ".jpg", ".png"):
                             print("TENSORFLOW", data["tensorflow"])
-                            if predict:
-                                pil_obj, raw_data = predict(fp, show = False, rawdata = True)
-
+                            if model:
+                                NMS_IOU = model.NON_MAX_SUPPRESSION_IOU
+                                ANCHOR_SZ = model.ANCHOR_LEVEL
+                                IMAGE_SZ = model.IMAGE_SIZE
+                                if "nms_iou" in result:
+                                    try:
+                                        NMS_IOU = float(result["nms_iou"])
+                                    except ValueError:
+                                        NMS_IOU = model.NON_MAX_SUPPRESSION_IOU
+                                    except TypeError:
+                                        NMS_IOU = model.NON_MAX_SUPPRESSION_IOU
+                                else:
+                                    NMS_IOU = model.NON_MAX_SUPPRESSION_IOU
+                                if "anchor_size" in result:
+                                    try:
+                                        ANCHOR_SZ = int(result["anchor_size"])
+                                    except ValueError:
+                                        ANCHOR_SZ = model.ANCHOR_LEVEL
+                                    except TypeError:
+                                        ANCHOR_SZ = model.ANCHOR_LEVEL
+                                else:
+                                    ANCHOR_SZ = model.ANCHOR_LEVEL
+                                if "image_size" in result:
+                                    try:
+                                        IMAGE_SZ = int(result["image_size"])
+                                    except ValueError:
+                                        IMAGE_SZ = model.IMAGE_SIZE
+                                    except TypeError:
+                                        IMAGE_SZ = model.IMAGE_SIZE
+                                else:
+                                    IMAGE_SZ = model.IMAGE_SIZE
+                                if "segment_minimum_ratio" in result:
+                                    try:
+                                        SEGMENT_MIN_RATIO = float(result["segment_minimum_ratio"])
+                                    except ValueError:
+                                        SEGMENT_MIN_RATIO = 0.75
+                                    except TypeError:
+                                        SEGMENT_MIN_RATIO = 0.75
+                                else:
+                                    SEGMENT_MIN_RATIO = 0.75                                  
+                                #print("DEBUG 124", NMS_IOU, ANCHOR_SZ, IMAGE_SZ)
+                                pil_obj, raw_data = model.predict(fp, \
+                                                                  show = False, \
+                                                                  rawdata = True, \
+                                                                  nms_iou = NMS_IOU, \
+                                                                  anchor_size = ANCHOR_SZ, \
+                                                                  image_size = IMAGE_SZ, \
+                                                                  segment_minimum_ratio = SEGMENT_MIN_RATIO)
                                 for i, v in enumerate(raw_data):
                                     raw_data[i]["score"] = float(raw_data[i]["score"])
-                                result["rawdata"] = raw_data
-                                    
+                                result["rawdata"] = raw_data   
                                 return_image = True
                                 if "rawdata_only" in data:
                                     if data["rawdata_only"]:
                                         return_image = False
                                     
                                 if return_image:
-                                    img_byte_arr = BytesIO()
-                                    pil_obj.save(img_byte_arr, format='JPEG', quality = 75, optimize = True, progressive = True)
-                                    img_byte_arr = img_byte_arr.getvalue()
-                                    
-                                    im_b64 = base64.b64encode(img_byte_arr).decode('utf-8', 'ignore')
-                                    result["result"] = ",".join(['data:image/jpeg;base64', im_b64])
+                                    SAVE_FORMAT = "jpg"
+                                    if "image_format" in result:
+                                        if result["image_format"] == "png":
+                                            SAVE_FORMAT = "png"
+
+                                    if SAVE_FORMAT == "png":
+                                        img_byte_arr = BytesIO()
+                                        pil_obj.save(img_byte_arr, format='PNG', quality = 75, optimize = True, progressive = True)
+                                        img_byte_arr = img_byte_arr.getvalue()
+                                        im_b64 = base64.b64encode(img_byte_arr).decode('utf-8', 'ignore')
+                                        result["result"] = ",".join(['data:image/png;base64', im_b64])
+                                    else:
+                                        img_byte_arr = BytesIO()
+                                        pil_obj.save(img_byte_arr, format='JPEG', quality = 75, optimize = True, progressive = True)
+                                        img_byte_arr = img_byte_arr.getvalue()
+                                        im_b64 = base64.b64encode(img_byte_arr).decode('utf-8', 'ignore')
+                                        result["result"] = ",".join(['data:image/jpeg;base64', im_b64]) 
 
                                     #SAVE FOR IMAGE VERIFICATION
                                     #with open(r"c:\test\result.png", "wb") as fio:
@@ -192,11 +258,10 @@ def run(PORT = PORT):
             data = pickle.load(fio)
         model = HARR_VOTT.load_model_by_pik(PIK)
         model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
-        predict = model.predict
-        load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
+        model.LOADPATH = os.path.join(os.path.split(PIK)[0], data['savefile'])
         if not PORT:
             PORT = int(data['port'])
-        start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), \
+        start_server_00 = websockets.serve(functools.partial(handler, model = model, port_no = PORT), \
                                            port = PORT, \
                                            max_size = MAX_SIZE, \
                                            read_limit = READ_LIMIT, \
@@ -214,11 +279,10 @@ if __name__ == "__main__":
                 data = pickle.load(fio)
             model = HARR_VOTT.load_model_by_pik(PIK)
             model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
-            predict = model.predict
-            load_model = lambda : model.load(os.path.join(os.path.split(PIK)[0], data['savefile']))
+            model.LOADPATH = os.path.join(os.path.split(PIK)[0], data['savefile'])
             if not PORT:
                 PORT = int(data['port'])
-            start_server_00 = websockets.serve(functools.partial(handler, predict = predict, port_no = PORT), \
+            start_server_00 = websockets.serve(functools.partial(handler, model = model, port_no = PORT), \
                                                port = PORT, \
                                                max_size = MAX_SIZE, \
                                                read_limit = READ_LIMIT, \

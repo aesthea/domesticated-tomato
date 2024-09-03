@@ -392,7 +392,7 @@ class loader:
             self.test = pd.DataFrame(columns = ["source", "path", "x1", "y1", "x2", "y2", "label", "color"])
         return True
             
-    def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None, with_labels_only = False):
+    def save_as_segment_image(self, extract_path, image_shape = (96, 96, 3), anchor_size = 4, tagfile = None, with_labels_only = False, segment_minimum_ratio = 0.25):
         print("SAVE SEGMENT WITH ANCHOR LV: ", anchor_size)
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         self.prepare(1.0, tagfile)
@@ -404,7 +404,7 @@ class loader:
             os.mkdir(extract_path)
         for i, a in enumerate(iter_of):
             fp, im, bb = a
-            iter_anc = anc.make(im, bb)
+            iter_anc = anc.make(im, bb, segment_minimum_ratio = segment_minimum_ratio)
             if i % 100 == 0 or (datetime.datetime.now() - dtnow).total_seconds() > 1800:
                 print(i, "/", total_files, (datetime.datetime.now() - dtnow).total_seconds())
                 dtnow = datetime.datetime.now()
@@ -590,7 +590,7 @@ class detection_model:
         plt.clf()
         plt.close()        
 
-    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = None, debug = False, save_to_test = False, anchor_size = None, image_size = None):
+    def predict(self, fp, output_size = OUTPUT_SIZE, nms_iou = None, debug = False, save_to_test = False, anchor_size = None, image_size = None, segment_minimum_ratio = 0.75):
         #print("DEBUG 594", nms_iou, anchor_size, image_size)
         raw_image = tf.io.read_file(fp)
         model_channel = self.m.input.shape[-1]
@@ -617,7 +617,7 @@ class detection_model:
         else:
             IMAGE_SZ = self.c.image_size
         anc = anchor(ANCHOR_SZ, crop_size = IMAGE_SZ)
-        anchor_gen = anc.make(image)
+        anchor_gen = anc.make(image, segment_minimum_ratio = segment_minimum_ratio)
         classifier_list = np.array([0])
         box_prediction_list = np.array([0])
         with tf.device("cpu:0"):
@@ -788,76 +788,28 @@ class anchor:
                 box.append(block_box)
                 y1 = y2
             x1 = x2
-                
-                
-        
-##        if ratio >= 1:
-##            npbox = np.zeros((round(anc_lvl * ratio), anc_lvl))
-##        if ratio < 1:
-##            npbox = np.zeros((anc_lvl, round(anc_lvl / ratio)))
-##        box = []
-##        box_expanded_size = 1.5
-##        if ratio >= 1.0:
-##            hs = anc_lvl + 1
-##            ws = math.ceil(ratio + anc_lvl)
-##            wr = 1 / ratio
-##            hr = 1
-##        else:
-##            if ratio != 0:
-##                anr = anc_lvl + 1 / ratio
-##            else:
-##                anr = 1
-##            hs = math.ceil(anr)
-##            ws = anc_lvl + 1
-##            wr = 1
-##            hr = 1 * ratio
-##        boxshape = np.zeros([hs, ws])
-##        if anc_lvl > 0:
-##            wr = (box_expanded_size * wr) / (anc_lvl + 1)
-##            hr = (box_expanded_size * hr) / (anc_lvl + 1)
-##        else:
-##            wr = wr / (anc_lvl + 1)
-##            hr = hr / (anc_lvl + 1)
-##        for h in range(hs):
-##            for w in range(ws):
-##                mw = wr / 2
-##                mh = hr / 2
-##                pw = ((w / ws) + ((w + 1) / ws)) / 2
-##                ph = ((h / hs) + ((h + 1) / hs)) / 2
-##                x1 = pw - mw
-##                x2 = pw + mw
-##                if x1 < 0:
-##                    x2 = x2 - x1
-##                    x1 = 0.0
-##                if x2 > 1:
-##                    x1 = x1 - (x2 - 1)
-##                    x2 = 1.0
-##                y1 = ph - mh
-##                y2 = ph + mh
-##                if y1 < 0:
-##                    y2 = y2 - y1
-##                    y1 = 0.0
-##                if y2 > 1:
-##                    y1 = y1 - (y2 - 1)
-##                    y2 = 1.0
-##                box.append([x1, y1, x2, y2]) 
         return box
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32, segment_min_ratio = 0.75):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32, segment_minimum_ratio = 0.75):
         b, h, w, c = image.shape
         ratio = h / w
         self.prepare_box(self.anchor_level, ratio)
-        MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > self.crop_size[1] * segment_min_ratio,  (self.boxes[:, 3] - self.boxes[:, 1]) * w > self.crop_size[0] * segment_min_ratio], 0)
+        #MASK TO REMOVE SEGMENTS LESS THAN SPECIFIED SIZE OR RATIO TO INPUT.
+        if segment_minimum_ratio > 0 and segment_minimum_ratio <= 1:
+            MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > self.crop_size[1] * segment_minimum_ratio,  (self.boxes[:, 3] - self.boxes[:, 1]) * w > self.crop_size[0] * segment_minimum_ratio], 0)
+        elif segment_minimum_ratio > 1:
+            MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > segment_minimum_ratio,  (self.boxes[:, 3] - self.boxes[:, 1]) * w > segment_minimum_ratio], 0)
+        else:
+            MASK = np.all([(self.boxes[:, 2] - self.boxes[:, 0]) * h > 16,  (self.boxes[:, 3] - self.boxes[:, 1]) * w > 16], 0)
         BOXES = self.boxes[MASK]
         BOX_INDICES = self.box_indices[MASK]
+        
         if not BOXES.shape[0]:
             BOXES = self.boxes[:9]
             BOX_INDICES = self.box_indices[: 9]
-        #print("anchor.make", BOXES.shape)
         self.boxes = BOXES
         crop_iter = iter(zip(BOXES, BOX_INDICES))
         BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3 and BOXES.shape[0] == BOX_INDICES.shape[0] and BOXES.shape[0] > 0
-        # ADD IN REMOVE BOXES WHERE IMAGE WILL BE HALF OF THE OUTPUT SIZE
         
         if BB_NDIMS_CHECK:
             bb_set_X = bounding_box_with_class[:,:,2] - bounding_box_with_class[:,:,0]
@@ -865,14 +817,14 @@ class anchor:
         else:
             bb_set_X = False
             bb_set_Y = False
-            #RETURN AS ITERATOR BECAUSE ITS SHIT LOAD OF MEMEORY!!
+            #RETURN AS ITERATOR BECAUSE ITS SHIT LOAD OF MEMORY!!
             for i in range(0, BOXES.shape[0], max_output_box_nobb):
                 v0 = i 
                 v1 = i + max_output_box_nobb
                 image_outputs = tf.image.crop_and_resize(image, BOXES[v0 : v1, :], BOX_INDICES[v0 : v1], self.crop_size)
                 bounding_box = np.ndarray([image_outputs.shape[0],0, 5])
                 yield image_outputs, bounding_box
-
+                
         if BB_NDIMS_CHECK:
             for index, box_value in enumerate(crop_iter):
                 box, box_indice = box_value
@@ -1078,7 +1030,7 @@ class load_model:
         self.model.prepare(self.SAVENAME + ".pik", self.TRAIN_SIZE)
         self.action = None
 
-    def predict(self, fp, show = True, rawdata = False, debug = False, nms_iou = None, anchor_size = None, image_size = None):
+    def predict(self, fp, show = True, rawdata = False, debug = False, nms_iou = None, anchor_size = None, image_size = None, segment_minimum_ratio = 0.75):
         #print("DEBUG 1029", nms_iou, anchor_size, image_size)
         self.action = "predict"
         if not nms_iou:
@@ -1086,7 +1038,8 @@ class load_model:
         im, original_im, result_rawdata = self.model.predict(fp, \
                                                              nms_iou = nms_iou, \
                                                              anchor_size = anchor_size, \
-                                                             image_size = image_size)
+                                                             image_size = image_size, \
+                                                             segment_minimum_ratio = segment_minimum_ratio)
         if show:
             plt.imshow(im)
             plt.axis('off')
