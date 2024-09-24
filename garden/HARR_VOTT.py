@@ -131,6 +131,10 @@ class loader:
             tags.drop_duplicates("label", inplace=True, keep='last')
             tags.reset_index(inplace=True)
             self.tags = tags[['label', 'color']].copy()
+
+    def load_tags(self, tagfile):
+        print("LOAD TAG", tagfile)
+        self.setup_tags(tagfile, nosave = True)
             
     def save_tags(self, tagfile):
         self.tags.to_pickle(tagfile)
@@ -521,7 +525,9 @@ class detection_model:
     def load(self, f = None):
         if not f:
             f = "detection"
+        tagfile = f + ".pik"
         try:
+            self.c.load_tags(tagfile)
             self.m.load_weights(f)
         except Exception as e:
             print(e)
@@ -1112,7 +1118,7 @@ class load_model:
     def folder_check(self, folder):
         #images = filter(lambda f : os.path.splitext(f)[1] in (".jpg", ".png", ".bmp") and os.path.isfile(os.path.join(folder, f)), os.listdir(folder))
         #images = [n for n in images]
-        images = [n.path for n in os.scandir(folder) if os.path.splitext(n.name)[1] in (".jpg", ".png", ".bmp") and n.is_file()]
+        images = [n.path for n in os.scandir(folder) if os.path.splitext(n.name)[1].lower() in (".jpg", ".png", ".bmp") and n.is_file()]
         max_len = 36
         len_images = len(images)
         if len_images < 1:

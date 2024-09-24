@@ -467,21 +467,24 @@ class widget:
         self.backbone_frame.grid(column = 0, row = 3, columnspan = 2)
         self.backbone = StringVar(self.root)
         self.backbone.set("B0")
-        
+
+        self.backbone_radioMBN2 = Radiobutton(self.backbone_frame, text="MobileNetV2", variable = self.backbone, value = "MobileNetV2", font = self.small_font, command = self.update)
+        self.backbone_radioMBN2.grid(column = 0, row = 0)
+
         self.backbone_radio1 = Radiobutton(self.backbone_frame, text="B0", variable = self.backbone, value = "B0", font = self.small_font, command = self.update)
-        self.backbone_radio1.grid(column = 0, row = 0)
+        self.backbone_radio1.grid(column = 1, row = 0)
         
         self.backbone_radio2 = Radiobutton(self.backbone_frame, text="B1", variable = self.backbone, value = "B1", font = self.small_font, command = self.update)
-        self.backbone_radio2.grid(column = 1, row = 0)
+        self.backbone_radio2.grid(column = 2, row = 0)
 
         self.backbone_radio3 = Radiobutton(self.backbone_frame, text="B3", variable = self.backbone, value = "B3", font = self.small_font, command = self.update)
-        self.backbone_radio3.grid(column = 2, row = 0)
+        self.backbone_radio3.grid(column = 3, row = 0)
 
         self.backbone_radio4 = Radiobutton(self.backbone_frame, text="B5", variable = self.backbone, value = "B5", font = self.small_font, command = self.update)
-        self.backbone_radio4.grid(column = 3, row = 0)
+        self.backbone_radio4.grid(column = 4, row = 0)
 
-        self.backbone_radio5 = Radiobutton(self.backbone_frame, text="B7", variable = self.backbone, value = "B7", font = self.small_font, command = self.update)
-        self.backbone_radio5.grid(column = 4, row = 0)
+        #self.backbone_radio5 = Radiobutton(self.backbone_frame, text="B7", variable = self.backbone, value = "B7", font = self.small_font, command = self.update)
+        #self.backbone_radio5.grid(column = 5, row = 0)
 
         self.backbone_radio6 = Radiobutton(self.backbone_frame, text="V2B0", variable = self.backbone, value = "V2B0", font = self.small_font, command = self.update)
         self.backbone_radio6.grid(column = 5, row = 0)
