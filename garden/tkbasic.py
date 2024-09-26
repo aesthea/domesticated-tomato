@@ -1,13 +1,13 @@
 import os
 import sys
-import time
+#import time
 import datetime
 from tkinter import *
 from tkinter import messagebox
 from tkinter import simpledialog
 from tkinter import filedialog
-from PIL import Image
-from PIL import ImageTk
+#from PIL import Image
+#from PIL import ImageTk
 from win32api import GetMonitorInfo, MonitorFromPoint
 import math
 #import sqlite3
