@@ -1,5 +1,6 @@
 import os
 import sys
+from os import system
 #import time
 import datetime
 from tkinter import *
@@ -1300,5 +1301,6 @@ if __name__ == "__main__":
             tk_socket_server.run()
             runwidget = False
     if runwidget:
+        system("title HARRVOTT widget")
         w = run()
     #pass

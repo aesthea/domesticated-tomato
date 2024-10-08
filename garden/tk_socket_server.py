@@ -1,5 +1,6 @@
 #import csv
 import os
+from os import system
 #import sys
 import numpy as np
 #import statistics
@@ -287,7 +288,8 @@ if __name__ == "__main__":
                                                max_size = MAX_SIZE, \
                                                read_limit = READ_LIMIT, \
                                                write_limit = READ_LIMIT)
-            print("RUN DATA %s SERVER" % PORT)     
+            print("RUN DATA %s SERVER" % PORT)
+            system("title %s SERVER" % PORT)
             asyncio.get_event_loop().run_until_complete(start_server_00)
             asyncio.get_event_loop().run_forever()
                
