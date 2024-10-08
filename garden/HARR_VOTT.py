@@ -425,7 +425,11 @@ class detection_model:
     def __init__(self, image_shape = (64, 64, 3), detection_region = 2, classes = 1000, backbone = "B0", dropout = 0.2):
         self.m = det.edet(input_shape = image_shape, num_classes = classes, detection_region = detection_region, dropout = dropout, backbone = backbone)
         self.m.compile(optimizer = Adam(learning_rate = 0.01), \
-                       loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
+                       #loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
+                       loss = [det.classification_loss, det.regression_loss], \
+                       metrics = [[keras.metrics.SparseCategoricalAccuracy()], [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]]
+                       )
+                       
         self.c = loader()
         self.c.NULL = classes - 1
         self.c.color_channel = image_shape[-1]
@@ -574,7 +578,16 @@ class detection_model:
         plt.figure(figsize=(8, 5))
         plt.subplot(1, 2, 1)
         epochs_range = range(len(self.history.history["loss"]))
-        for k in ('accuracy', 'val_accuracy', 'regression_loss', 'val_regression_loss', 'classification_loss', 'val_classification_loss'):
+        for k in ('accuracy', \
+                  'val_accuracy', \
+                  'regression_loss', \
+                  'val_regression_loss', \
+                  'classification_loss', \
+                  'val_classification_loss',
+                  'classification_sparse_categorical_accuracy', \
+                  'regression_io_u_1', \
+                  'val_classification_sparse_categorical_accuracy', \
+                  'val_regression_io_u_1'):
             if k in self.history.history:
                 v = self.history.history[k]
                 plt.plot(epochs_range, v, label=k)
@@ -1164,9 +1177,9 @@ def from_hex(h):
     return [int(s[:2],16), int(s[2:4], 16), int(s[4:], 16)]
 
 def test_train():
-    e = detection_model(image_shape=(96,96,3), detection_region = 2, classes = 1000, backbone = "B0")
+    e = detection_model(image_shape=(64,64,1), detection_region = 2, classes = 1000, backbone = "B0")
     e.load_folder(r"C:\Users\CSIPIG0140\Desktop\TRAIN IMAGE\DETECTOR_ALL\DETECTOR_ALL", "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/DETECTOR_ALL/DETECTOR_ALL.pik", 0.7)
-    e.train(0.01, 50, 20, 32)
+    e.train(0.01, 10, 10, 16)
     return e
 
 def save_segmented_image():
