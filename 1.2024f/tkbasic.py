@@ -462,9 +462,14 @@ class widget:
         try:
             self.root.after_cancel(self._debounce_af)
         except Exception as e:
-            print(e)
+            #print(e)
+            pass
         self._debounce_af = self.root.after(t, func)
 
+
+#-------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------------------
         
 
     def build(self):
@@ -629,16 +634,16 @@ class widget:
         #self.backbone_radio5.grid(column = 5, row = 0)
 
         self.backbone_radio6 = Radiobutton(self.backbone_frame, text="V2B0", variable = self.backbone, value = "V2B0", font = self.small_font, command = self.update)
-        self.backbone_radio6.grid(column = 5, row = 0)
+        self.backbone_radio6.grid(column = 4, row = 0)
         
         self.backbone_radio7 = Radiobutton(self.backbone_frame, text="V2B1", variable = self.backbone, value = "V2B1", font = self.small_font, command = self.update)
-        self.backbone_radio7.grid(column = 6, row = 0)
+        self.backbone_radio7.grid(column = 5, row = 0)
         
         #self.backbone_radio8 = Radiobutton(self.backbone_frame, text="V2B3", variable = self.backbone, value = "V2B3", font = self.small_font, command = self.update)
         #self.backbone_radio8.grid(column = 7, row = 0)
         
         self.backbone_radio9 = Radiobutton(self.backbone_frame, text="V2S", variable = self.backbone, value = "V2S", font = self.small_font, command = self.update)
-        self.backbone_radio9.grid(column = 8, row = 0)
+        self.backbone_radio9.grid(column = 6, row = 0)
 
 
         self.label(self.backbone_and_optimizer, 150, 25, 0, 1, "Optimizer", columnspan = 1)
@@ -708,11 +713,8 @@ class widget:
 
 
         self.label_w_slider(self.box_class_dropout, 50, 120, 25, 0, 0, "Boxes", "region", font_size = self.normal_font, min_value =1, max_value = 5, interval = 1, bind=self.update)
-        #self.label_w_input(self.box_class_dropout, 70, 100, 25, 0, 0, "Boxes", "region", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         self.label_w_slider(self.box_class_dropout, 50, 170, 25, 0, 1, "Tags", "tags", font_size = self.normal_font, min_value =100, max_value = 1000, interval = 100, bind=self.update)
-        #self.label_w_input(self.box_class_dropout, 70, 100, 25, 0, 1, "Tags", "tags", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         self.label_w_slider(self.box_class_dropout, 80, 130, 25, 0, 3, "Dropout", "dropout", font_size = self.normal_font, min_value =0, max_value = 0.6, interval = 0.1, bind=self.update)
-        #self.label_w_input(self.box_class_dropout, 130, 130, 25, 0, 3, "Dropout", "dropout", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         
 
         self.label(self.frame3, 600, 25, 4, 0, "", columnspan = 2)
@@ -720,17 +722,12 @@ class widget:
 
         self.vlabel_w_textarea(self.frame3, 600, 25, 125, 6, 0, "Input files : ", "input_files", columnspan = 2, font_size = self.normal_font, bind=self.update)
 
-        #self.label_w_input(self.frame3, 100, 200, 25, 7, 0, "Anchor size", "anchor_size", font_size = self.normal_font)
         self.label_w_slider(self.frame3, 100, 200, 25, 7, 0, "Anchor size", "anchor_size", font_size = self.normal_font, min_value =1, max_value = 10, interval = 1, bind=self.update)
-        #self.label_w_input(self.frame3, 100, 200, 25, 7, 1, "Null ratio", "null_ratio", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 7, 1, "Null ratio", "null_ratio", font_size = self.normal_font, min_value =0, max_value = 2, interval = 0.1, bind=self.update)
 
-        #self.label_w_input(self.frame3, 100, 200, 25, 8, 0, "Batch size", "batch_size", font_size = self.normal_font)
         self.label_w_slider(self.frame3, 100, 200, 25, 8, 0, "Batch size", "batch_size", font_size = self.normal_font, min_value =16, max_value = 128, interval = 16, bind=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 8, 1, "Train Test", "train_test_ratio", font_size = self.normal_font, min_value =1, max_value = 0.5, interval = 0.1, bind=self.update)
 
-        #self.label_w_input(self.frame3, 100, 200, 25, 10, 0, "Dropout", "dropout", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
-        #self.label_w_input(self.frame3, 100, 200, 25, 9, 0, "Learning rate", "learning_rate", font_size = self.normal_font)
         self.logslider(self.frame3, 100, 200, 25, 9, 0, "Learning rate", "learning_rate", font_size = self.normal_font, min_value=0.01, max_value=0.0001, bind=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 9, 1, "training steps", "steps", font_size = self.normal_font, min_value =10, max_value = 100, interval = 10, bind=self.update)
 
@@ -749,10 +746,6 @@ class widget:
         self.spacer0301.grid(column = 0, row = 11, columnspan = 2)
         
         self.label_w_input(self.frame3, 100, 500, 25, 12, 0, "Test folder", "testfolder", columnspan = 2, bind=self.update)
-
-        #self.label_w_input(self.frame3, 100, 200, 25, 11, 0, "NMS_IoU", "non_max_suppression_iou", font_size = self.normal_font, bind_focusout=self.update, bind_return=self.update, bind_tab=self.update)
-
-
 
 # END OF BUILD ---------------------------------------------------------
 
@@ -971,7 +964,7 @@ class widget:
         return None
 
     def update(self, event = None):
-        print("update")
+        #print("update")
         augment = self.value_type(self.inputs["augment"], int)
         self.top_augment_activate.config(text = "Augment : %s" % augment)
         b = '0000000000' + bin(augment)[2:]
@@ -1022,10 +1015,12 @@ class widget:
                     pickle.dump(self.data, fio)
 
     def segment_image(self):
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
         if not self.DET_MODEL:
-            print("MODEL NOT SET")
+            print("MODEL NOT SET, LOADING MODEL")
+            self.load_model()
+        if not messagebox.askyesno(title="segment", message="create segmented imageset?"):
             return False
         self.update()
         self.DET_MODEL.load_input(self.data["input_files"])                  
@@ -1034,14 +1029,14 @@ class widget:
 
 
     def train(self, early_stopping = False):
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
             print("PLEASE LOAD WEIGHT")
             return False
         if not self.DET_MODEL:
-            print("MODEL NOT SET")
+            print("MODEL NOT SET, LOADING MODEL")
+            self.load_model()
             return False
-
         self.update()
         self.DET_MODEL.load_input(self.data["input_files"])
         if os.path.isdir(self.data["savefile"]):
@@ -1059,8 +1054,6 @@ class widget:
                 return False
         else:
             return False
-        print("TRAINING : ", EPOCH)
-
         ANCHOR_SIZE = self.value_type(self.inputs["anchor_size"], int)
         BATCH_SIZE = self.value_type(self.inputs["batch_size"], int)
         NULL_RATIO = self.value_type(self.inputs["null_ratio"], float)
@@ -1068,6 +1061,8 @@ class widget:
         LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
+
+        print("TRAINING : ", EPOCH, "Learning rate : ", LEARNING_RATE)
         
         self.DET_MODEL.train(LEARNING_RATE, \
                              EPOCH, \
@@ -1093,20 +1088,25 @@ class widget:
 
     def load(self):
         print("widget.load")
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
-        if not self.DET_MODEL:
-            print("MODEL NOT SET")
             return False
+        if not self.DET_MODEL:
+            print("MODEL NOT SET, LOADING A MODEL")
+            self.load_model()
+            return False
+        
         self.DET_MODEL.load()
 
+
     def trial(self):
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
             print("PLEASE LOAD WEIGHT")
             return False
         if not self.DET_MODEL:
-            print("MODEL NOT SET")
+            print("MODEL NOT SET, LOADING A MODEL")
+            self.load_model()
             return False
         ANCHOR_SIZE = self.value_type(self.inputs["anchor_size"], int)
         BATCH_SIZE = self.value_type(self.inputs["batch_size"], int)
@@ -1126,11 +1126,12 @@ class widget:
         
     def sanity_check(self):
         self.update()
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
+        
         if not self.DET_MODEL:
-            print("MODEL NOT SET")
-            return False
+            print("MODEL NOT SET, LOADING MODEL")
+            self.load_model()
 
         if not np.any(self.DET_MODEL.model.c.df):
             self.DET_MODEL.load_input(self.data["input_files"])
@@ -1153,7 +1154,7 @@ class widget:
                                     AUGMENT)
 
     def predict_image(self):
-        if not self.setting_check_for_model:
+        if not self.setting_check_for_model():
             self.load_model()
             print("PLEASE LOAD WEIGHT")
             return False
@@ -1243,21 +1244,14 @@ class widget:
         self.update()        
         self.vid_top = Toplevel(self.root)
         self.vid_top_a = Frame(master = self.vid_top, bg = "blue", width = 480, height = 480)
-        #self.vid_top_a.grid_propagate(0)
-        #self.vid_top_a.pack_propagate(0)
         self.vid_top_a.grid(column = 0, row = 0)
 
-
         self.console_image_canvas = Canvas(master = self.vid_top_a, bg = "black", width = 480, height = 480)
-        #self.console_image_canvas.grid_propagate(0)
-        #self.console_image_canvas.pack_propagate(0)
         self.console_image_canvas.grid(column = 0, row = 0)
         self.console_image_canvas.bind('<Button>', self.canvas_click)
 
         
         self.vid_top_b = Frame(master = self.vid_top, bg = "red", width = 480, height = 25)
-        #self.vid_top_b.grid_propagate(0)
-        #self.vid_top_b.pack_propagate(0)
         self.vid_top_b.grid(column = 0, row = 1)
 
         self.camera = camera.camera()
@@ -1329,7 +1323,8 @@ class widget:
         try:
             self.root.after_cancel(self.l)
         except Exception as e:
-            print("ERROR widget.loop", e)
+            #print("ERROR widget.loop", e)
+            pass
         if self.vid_top.winfo_exists():
             self.cycle()
             self.camera_detect()
@@ -1341,27 +1336,11 @@ class widget:
     def cycle(self):
         if self.THREAD:
             if self.THREAD.is_alive():
-                #print("thread alive")
                 pass
             else:
-                #print("END THREAD")
                 v = self.THREAD.join()
-                #print("THREAD VAL", v)
                 self.THREAD = None
                 
-##                if v == "ai_predict_done":
-##                    self.ai_detect_last_sample = datetime.datetime.now()
-##                    #print("AI DOONE")
-##                elif v == "ai_predict_error":
-##                    self.ai_detect_last_sample = datetime.datetime.now() + datetime.timedelta(0, 5)
-##                elif v == "ai_connect_error":
-##                    self.ai_detect_last_sample = datetime.datetime.now() + datetime.timedelta(0, 2)
-                
-##    def cycle_detect(self):
-##        if self.ai_checkbox_value.get():
-##            if (datetime.datetime.now() - self.ai_detect_last_sample).total_seconds() * 1000 > self.ai_detect_rate * 1000:
-##                self.ai_detect_last_sample = datetime.datetime.now() + datetime.timedelta(0, 30)
-##                self.detect()
                 
     def worker(self, func, args):
         if not self.THREAD:
@@ -1386,11 +1365,9 @@ class widget:
 
         self.THREAD = self.worker(self.camera_predict, (im, ))
         if self.THREAD:
-            #self.STRINGVAR.set("START THREAD")
             self.THREAD.start()
 
     def camera_predict(self, args):
-        #self.STRINGVAR.set("RUN THREAD")
         if np.any(args):
             if args.ndim == 3:
                 if args.shape[0] > 100 and args.shape[1] > 100 and args.shape[2] in (1, 3): 

@@ -22,11 +22,11 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers import SGD
 #import tensorflow_addons as tfa
 import urllib
-#import pandas as pd
-#import base64
+
 
 import warnings
 warnings.filterwarnings("error", category = RuntimeWarning)
+
 
 try:
     import model as det
@@ -57,8 +57,10 @@ NAN_REPLACEMENT = "-"
 def preprocess_func(im):
     return  ((im - np.min(im)) / (np.max(im) - np.min(im) + 1e-6) * 255).astype(np.int16)
 
+
 def normalize_func(image):
     return tf.cast(image, tf.float32) / 255
+
 
 class loader:
     def __init__(self):
@@ -66,6 +68,7 @@ class loader:
         self.df_label = pd.DataFrame(columns = ['category', 'label', 'color'])
         self.tagfile = "dummy.csv"
         self.COLUMN = ["category", "source", "path", "x1", "y1", "x2", "y2", "label", "color", "segmented"]
+
 
     def load_from_csv(self, fp = "LABEL_FILE.csv", category = None):
         column_names = ['folder', 'filename', 'timeseek', 'path', 'label', 'x1', 'y1', 'x2', 'y2', 'color', 'modified_dt']
@@ -80,6 +83,7 @@ class loader:
         self.df = pd.concat([self.df, df[self.COLUMN]], ignore_index = True)
         self.df.drop_duplicates(inplace=True, keep='last')
 
+
     def load_from_vott(self, fp = "VOTT_EXPORT.json", category = None):
         tags = {}
         VOTT_LIST = []
@@ -92,13 +96,10 @@ class loader:
                     with open(category_file, "r") as fio:
                         category = fio.readline().strip()
                         print(fp, " >>> ", category)
-            
         with open(fp,"r") as fio:
             obj = json.load(fio)
-            
         for t in obj["tags"]:
             tags[t["name"]] = t["color"]
-                    
         for k in obj["assets"]:
             asset = obj["assets"][k]
             path = os.path.join(os.path.split(fp)[0], asset["asset"]["name"])
@@ -120,6 +121,7 @@ class loader:
         self.df = pd.concat([self.df, pd.DataFrame.from_records(VOTT_LIST)], ignore_index = True)
         self.df.drop_duplicates(inplace=True, keep='last')
 
+
     def load_from_exif(self, fol = "FOLDER"):
         fs = os.scandir(fol)
         fs = [n.path for n in fs if os.path.splitext(n.name)[1] == ".jpg" and n.is_file()]
@@ -140,6 +142,7 @@ class loader:
         self.df = pd.concat([self.df, pd.DataFrame.from_records(ls)], ignore_index = True)
         self.df.drop_duplicates(inplace=True, keep='last')
 
+
     def prepare_label(self, tagfile = None, save_file = True):
         column_names = ['category', 'label', 'color']
         if not tagfile:
@@ -151,14 +154,11 @@ class loader:
             file_df.reset_index(inplace=True)
         else:
             file_df = pd.DataFrame(columns = column_names)
-        
         loaded_g = self.df.groupby(["category","label"], dropna=False)
         loaded_df = loaded_g.first().reset_index()[column_names]
-
         df = pd.concat([file_df, loaded_df], ignore_index = True)
         df.drop_duplicates(["category","label"], inplace=True, keep='last')
         df.reset_index(inplace=True)
-        
         #save function here maybe -----
         df.fillna(value = NAN_REPLACEMENT, inplace=True)
         df = df[column_names]
@@ -167,8 +167,8 @@ class loader:
         #-----------------------
         self.df_label = df
 
+
     def frac(self, frac = 0.7):
-        #should add in bb nobb filter here
         g = self.df.groupby("path")
         self.group_indice = g.indices
         li = list(self.group_indice.keys())
@@ -178,27 +178,23 @@ class loader:
 
         
     def fetch_one(self, sampling, dataframe = None, indice = None):
+        if not np.any(dataframe):
+            dataframe = self.df
+        if not np.any(indice):
+            indice = self.group_indice
         for k in sampling:
             if not os.path.isfile(k):
                 continue
-            #print(type(dataframe), type(indice))
-            if not np.any(dataframe):
-                dataframe = self.df
-            if not np.any(indice):
-                indice = self.group_indice
             ONE_FILE = dataframe.iloc[indice[k]]
             IS_SEGMENT = np.all(ONE_FILE[["segmented"]])
             IMAGE_FP = None
-            
             if len(ONE_FILE) == 1 and IS_SEGMENT:
                 #it is exif
                 RAW_IM, ONE_FILE = self.load_exif(k)
-                
             elif len(ONE_FILE) > 0 and not IS_SEGMENT:
                 #it is vott or csv
                 RAW_IM = self.load_image(k)
             else:
-                #print(k)
                 continue
             #manage tag labels ----------
             if "category" not in ONE_FILE:
@@ -221,7 +217,7 @@ class loader:
                         self.df_label.to_csv(self.tagfile)
                 except Exception as e:
                     print("FAILED TO SAVE TAG", e)
-                RAW_DF["tag_indice"] = RAW_DF.apply(lambda x : np.all((self.df_label[["category", "label"]] == x[["category", "label"]]),1).idxmax(), axis = 1, result_type = "reduce")
+                RAW_DF["tag_indice"] = RAW_DF.apply(lambda x : np.all((self.df_label[["category", "label"]] == x[["category", "label"]]),1).idxmax(), axis = 1, result_type = "reduce")        
             #--------------------------
             #use only RAW_IM, RAW_DF
             #change image from 0.0 ~ 1.0 to pixel size if found
@@ -240,25 +236,18 @@ class loader:
             sampling = self.test
         else:
             sampling = self.train
-
         if len(sampling) == 0:
             raise Exception("No sample to iterate")
-        
         anc = anchor(anchor_level = anchor_level, crop_size = input_shape[:2])
-
         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
         batch_image = np.ndarray([0, input_shape[0], input_shape[1], input_shape[2]], dtype = np.int16)
-        
         while True:
             random.shuffle(sampling)
             null_sample = [n for n in sampling if n[-6:] == '_N.jpg']
             sampling = [n for n in sampling if n[-6:] != '_N.jpg']
-            #print(len(sampling),  len(null_sample))
             sampling.extend(null_sample[: int(len(sampling) * null_ratio)])
             random.shuffle(sampling)
-            #print(len(sampling))
-            
             iter_file = self.fetch_one(sampling)
             for fp, RAW_IM, BB_INDICE, IS_SEGMENT in iter_file:
                 RAW_IM = preprocess_func(RAW_IM)
@@ -266,18 +255,14 @@ class loader:
                     anc_iter = anc.make(RAW_IM, BB_INDICE, null_ratio = null_ratio, fp = fp)
                 else:
                     anc_iter = [[RAW_IM, BB_INDICE]]
-
                 for ni, nb in anc_iter:
                     aug_im, aug_bb, aug_lb = self.augment_batch(ni, nb, augment_seq)
-
                     IMAGE_SHAPE = aug_im.shape
-                
                     if input_shape[-1] == 1:
                         aug_im = tf.image.rgb_to_grayscale(aug_im).numpy()
-
                     if IMAGE_SHAPE[:2] != input_shape[:2]:
-                        aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.BILINEAR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()
-
+                        #aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.BILINEAR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()
+                        aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()                        
                     if batch_boundary_box.shape[1] > aug_bb.shape[0]:
                         bb_filler = np.full([batch_boundary_box.shape[1] - aug_bb.shape[0], 4], [0, 0, 1, 1])
                         label_filler = np.full([batch_boundary_box.shape[1] - aug_bb.shape[0], 1], null_label)
@@ -285,8 +270,7 @@ class loader:
                         aug_lb = np.append(aug_lb, label_filler, axis = 0)
                     elif batch_boundary_box.shape[1] < aug_bb.shape[0]:
                         aug_bb = aug_bb[: batch_boundary_box.shape[1], :]
-                        aug_lb = aug_lb[: batch_boundary_box.shape[1], :]    
-
+                        aug_lb = aug_lb[: batch_boundary_box.shape[1], :]  
                     batch_image = np.append(batch_image, np.expand_dims(aug_im, 0), axis = 0)
                     batch_boundary_box = np.append(batch_boundary_box, np.expand_dims(aug_bb, 0), axis = 0)
                     batch_label = np.append(batch_label, np.expand_dims(aug_lb, 0), axis = 0)
@@ -301,6 +285,7 @@ class loader:
                         batch_boundary_box = np.ndarray([0, regions, 4], dtype = np.float16)
                         batch_label = np.ndarray([0, regions, 1], dtype = np.int16)
                         batch_image = np.ndarray([0, input_shape[0], input_shape[1], input_shape[2]], dtype = np.int16)
+
             
     def load_image(self, fp):
         image_io = tf.io.read_file(fp)
@@ -310,6 +295,7 @@ class loader:
             tf_img = tf.image.decode_jpeg(image_io, channels=3)
         return tf.expand_dims(tf_img,0).numpy()
 
+
     def load_exif(self, fp):
         im = Image.open(fp)
         e = im.getexif()
@@ -318,6 +304,7 @@ class loader:
         except:
             pass
         return np.ndarray([0, 0, 0, 3]), pd.DataFrame(columns = ["category", "source", "path", "x1", "y1", "x2", "y2", "label", "color", "segmented"])
+
 
     def save_exif(self, fp, im, bb):
         im = tf.keras.preprocessing.image.array_to_img(im)
@@ -330,22 +317,20 @@ class loader:
         e[37510] = ddf.to_json()
         im.save(fp, exif = e)
 
+
     def load_tags(self, tagfile):
-        #print("LOAD TAG", tagfile)
         self.prepare_label(tagfile, save_file = False)
-        #self.setup_tags(tagfile, nosave = True)
+        
             
     def save_tags(self, tagfile):
-        #self.tags.to_pickle(tagfile)
         self.prepare_label(tagfile)
+        
 
     def save_as_segment_image(self, extract_path, image_shape = (128, 128, 3), anchor_size = 4, tagfile = None, with_labels_only = False, segment_minimum_ratio = 0.25):
         print("SAVE SEGMENT WITH ANCHOR LV: ", anchor_size)
         anc = anchor(anchor_size, crop_size = image_shape[:2])
         self.prepare_label(tagfile, save_file = False)
         self.frac(1.0)
-
-        #FRAC
         not_segmented = self.df.query("segmented == False")
         g = not_segmented.groupby("path")
         indice = g.indices
@@ -357,7 +342,6 @@ class loader:
             if n % 100 == 0:
                 print("in progress > ", n)
             fp, RAW_IM, BB_INDICE, seg = f
-            #print(fp, seg)
             if seg:
                 continue
             anc_iter = anc.make(RAW_IM, BB_INDICE, null_ratio = 1000, segment_minimum_ratio = 0.25)
@@ -372,9 +356,9 @@ class loader:
                         label_indicator = "N"
                     savefile = os.path.join(extract_path, "%s_%03d_%s.jpg" % (f, i, label_indicator))
                     self.save_exif(savefile, ni[0], nb)        
-                #self.save_exif(fp, im, bb)
         print("finish segmenting")
 
+        
     def augment_batch(self, im, bb, augment_seq = None):
         aug_im, aug_bbwc = augment(im, bb, augment_seq)
         w = aug_im.shape[1]
@@ -403,6 +387,7 @@ class loader:
         local_label = np.append(local_label, np.expand_dims(np_array[:, 4], -1), 0)
         return aug_im, local_bbox, local_label
 
+
 class detection_model:
     def __init__(self, image_shape = (64, 64, 3), detection_region = 2, classes = 1000, backbone = "B0", dropout = 0.2, optimizer = "Adam"):
         self.m = det.edet(input_shape = image_shape, \
@@ -414,27 +399,30 @@ class detection_model:
                        #loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
                        loss = [det.classification_loss, det.regression_loss], \
                        metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
-                                  [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]]
-                       )
-        
+                                  [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]])
         self.c = loader()
         self.null = classes - 1
         self.regions = detection_region
         self.image_shape = image_shape
         self.options = {}
 
+
     def load_csv(self, path):
         self.c.load_from_csv(path)
+
 
     def load_vott(self, path, category = None):
         self.c.load_from_vott(path, category)
 
+
     def load_exif(self, path):
         self.c.load_from_exif(path)
+
 
     def prepare(self, tagfile, frac):
         self.c.prepare_label(tagfile, save_file = False)
         self.c.frac(frac)
+
         
     def segment(self, \
                 extract_path, \
@@ -449,6 +437,7 @@ class detection_model:
                                      with_labels_only = False, \
                                      segment_minimum_ratio = 0.25)
         print("DONE ", (datetime.datetime.now() - dt_now).total_seconds())
+
         
     def train(self, \
               learning_rate = 0.001, \
@@ -472,7 +461,6 @@ class detection_model:
                              augment_seq = augment_seq, \
                              null_ratio = null_ratio, \
                              normalize_image = True)
-
         test = self.c.batch(test_mode = True, \
                             regions = self.regions, \
                             null_label = self.null, \
@@ -482,7 +470,6 @@ class detection_model:
                             augment_seq = augment_seq, \
                             null_ratio = null_ratio, \
                             normalize_image = True)
-
         if train_test_ratio < 1 and train_test_ratio > 0:
             if callback_earlystop:
                 callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
@@ -499,9 +486,7 @@ class detection_model:
                                           steps_per_epoch = steps, \
                                           validation_data = test, \
                                           validation_steps = steps // 2, \
-                                          verbose = 2)                
-            
-            
+                                          verbose = 2)
         else:
             if callback_earlystop:
                 callback = tf.keras.callbacks.EarlyStopping(monitor = "loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
@@ -525,6 +510,7 @@ class detection_model:
             self.c.save_tags(tagfile)
         except Exception as e:
             print(e)
+
             
     def load(self, f = None):
         if not f:
@@ -535,6 +521,7 @@ class detection_model:
             self.m.load_weights(f)
         except Exception as e:
             print(e)
+
         
     def sanity_check(self, batch_size = 36, null_ratio = 1.0, anchor_size = 4, augment_seq = None):
         original_option = copy.copy(self.options)
@@ -542,16 +529,9 @@ class detection_model:
         self.options["anchor_size"] = anchor_size
         self.options["null_ratio"] = null_ratio
         self.options["seq"] = augment_seq
-
-
-            
         if original_option != self.options:
-            #print("\n\nrefresh sanity check", self.options, original_option)
-            #for k in self.options:
-            #    print(k, original_option[k], self.options[k])
             if 'sanity_check_sample' in dir(self):
                 del(self.sanity_check_sample)
-            
         if 'sanity_check_sample' not in dir(self):            
             self.c.frac(1.0)
             self.sanity_check_sample = self.c.batch(test_mode = False, \
@@ -591,6 +571,7 @@ class detection_model:
         plt.show()
         plt.clf()
         plt.close()
+
         
     def chart(self, show = True):
         plt.figure(figsize=(8, 5))
@@ -611,7 +592,6 @@ class detection_model:
                 plt.plot(epochs_range, v, label=k)
         plt.legend(loc='upper right')
         plt.title('Training and Validation Accuracy')
-
         plt.subplot(1, 2, 2)
         for k in ('loss', 'val_loss'):
             if k in self.history.history:
@@ -619,13 +599,13 @@ class detection_model:
                 plt.plot(epochs_range, v, label=k)                
         plt.legend(loc='upper right')
         plt.title('Training and Validation Loss')
-        
         if show:
             plt.show()
         else:
             plt.savefig("training_result.png")
         plt.clf()
         plt.close()        
+
 
     def predict(self, \
                 fp, \
@@ -655,20 +635,15 @@ class detection_model:
                 image = image.numpy()
             else:
                 image = copy.copy(raw_image)            
-
         image = preprocess_func(image)
         image = tf.expand_dims(image,0)
         raw_image = tf.expand_dims(raw_image, 0)
-
         if not input_shape:
             input_shape = model_shape
-            
         anc = anchor(anchor_size, crop_size = input_shape[:2])
         anchor_gen = anc.make(image, segment_minimum_ratio = segment_minimum_ratio)
-        
         classifier_list = np.array([0])
         box_prediction_list = np.array([0])
-        
         with tf.device("cpu:0"):
             for image_for_predict, bb in anchor_gen:
                 image_for_predict = tf.image.resize(image_for_predict, self.m.input.shape[1:3])
@@ -680,7 +655,6 @@ class detection_model:
                 else:
                     classifier_list = classifier
                     box_prediction_list = box_prediction
-
                 if debug:
                     image_for_predict = image_for_predict * 255
                     debug_grid = tf.image.draw_bounding_boxes(image_for_predict, box_prediction, [[255, 0, 0]])
@@ -698,54 +672,40 @@ class detection_model:
                     plt.show()
                     plt.clf()
                     plt.close()
-            
         inference = (classifier_list, box_prediction_list)
-
         classifier = tf.argmax(inference[0], axis = -1).numpy()
         arr = np.expand_dims(classifier,-1)
         score = np.take_along_axis(inference[0], arr, 2)[:,:,0]
-
         score = score[np.where(classifier < self.c.df_label.index.stop)]
         inference_bb = inference[1][np.where(classifier < self.c.df_label.index.stop)]
         anchor_crop = anc.boxes[np.where(classifier < self.c.df_label.index.stop)[0]]
         classifier_index = classifier[np.where(classifier < self.c.df_label.index.stop)]
         tags = self.c.df_label.iloc[classifier[np.where(classifier < self.c.df_label.index.stop)]]
         tags.index = range(tags.count().label)
-
         anchor_position = anchor_crop * [image.shape[2], image.shape[1], image.shape[2], image.shape[1]] #xyXY
         anchor_reposition = (anchor_position[:, [2, 3, 2, 3]] - anchor_position[:, [0, 1, 0, 1]]) / [image.shape[2], image.shape[1], image.shape[2], image.shape[1]]     
-
         boundary_boxes = inference_bb * anchor_reposition
         boundary_boxes = boundary_boxes + anchor_crop[:, [0, 1, 0, 1]]
-        
         nms = tf.image.non_max_suppression(boundary_boxes, score, 100, nms_iou)
-
         nms_boundary_box = boundary_boxes[nms]
-
         if raw_image.shape[-1] == 1:
             image = tf.image.grayscale_to_rgb(raw_image, name=None)
         else:
             image = raw_image
-
         output_size = min(output_size, max(image.shape[1], image.shape[2]))
-        
         image = tf.image.resize(image, (output_size, output_size), method=tf.image.ResizeMethod.BILINEAR, preserve_aspect_ratio=True, antialias=False, name=None)
         nms_colors = [hex2rgb(n) for n in tags.iloc[nms].color.tolist()]
         colors = [hex2rgb(n) for n in tags.color.tolist()]
-
         if nms_boundary_box.shape[0]:
             output_im = tf.image.draw_bounding_boxes(image, np.expand_dims(nms_boundary_box, 0), nms_colors)
         else:
             output_im = image
-            
         ktags = tags.iloc[nms].to_dict('index')
         output_im = output_im.numpy()[0]
-
         prediction_result = []
         for k in ktags:
             pos = (boundary_boxes[k][[1, 0]] * [image.shape[2], image.shape[1]] + [5, 15]).astype(np.int16)
             output_im = cv2.putText(output_im, "%s (%0.1f%%)" % (ktags[k]['label'], score[k] * 100), pos, cv2.FONT_HERSHEY_PLAIN, 1, colors[k], 1)
-
             result = {}
             result["x1"] = int(boundary_boxes[k][1] * image.shape[2])
             result["y1"] = int(boundary_boxes[k][0] * image.shape[1])
@@ -762,6 +722,7 @@ class detection_model:
         original_im = tf.keras.preprocessing.image.array_to_img(image[0])
         return im, original_im, prediction_result
 
+
 def read_image(fp):
     raw_image = tf.io.read_file(fp)
     if os.path.splitext(fp)[-1].lower() == ".bmp":
@@ -770,6 +731,7 @@ def read_image(fp):
         raw_image = tf.image.decode_jpeg(raw_image, channels=3)
     image = tf.expand_dims(raw_image,0)
     return image
+
 
 class anchor:
     def __init__(self, anchor_level = 2, crop_size = (128, 128)):
@@ -781,6 +743,7 @@ class anchor:
             self.crop_size = np.array((crop_size, crop_size))
         else:
             self.crop_size = np.array((128, 128))
+
             
     def prepare_box(self, level = 2, ratio = 1.0):
         if ratio > 1:
@@ -796,6 +759,7 @@ class anchor:
             b.append(bx)
         b = tf.concat(b, 0)
         self.boxes = np.unique(tf.concat([boxes, b], 0), axis = 0)
+
         
     def generate_box(self, anc_lvl, ratio, border = 0.01):
         anc_lvl += 1
@@ -844,14 +808,12 @@ class anchor:
     def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32, segment_minimum_ratio = 0.75, null_ratio = 1, fp = None):
         b, h, w, c = image.shape
         ratio = h / w
-        
         if np.ndim(bounding_box_with_class) == 3:
             inbb_mask = np.all(bounding_box_with_class[:, :,[2,3]] - bounding_box_with_class[:, :,[0,1]] >= 0, 2)            
             bounding_box_with_class = bounding_box_with_class[inbb_mask]
             bounding_box_with_class = np.expand_dims(bounding_box_with_class, 0)
         self.prepare_box(self.anchor_level, ratio)
         BOXES = self.boxes
-        
         if np.ndim(bounding_box_with_class) == 3:
             box_to_pix = BOXES * np.array(image.shape)[[1,2,1,2]]
             input_bb_box = []
@@ -864,13 +826,11 @@ class anchor:
                     bb_hit_mask[np.random.choice(np.where(bb_hit_mask == False)[0], expected_null, replace = False)] = True
             BOXES = BOXES[bb_hit_mask]
         else:
-            print("PREDICTION MODE")
+            #print("IMAGE PREDICTION MODE")
             MASK = np.all((BOXES[:, [2,3]] - BOXES[:, [0,1]]) * np.array((h, w)) > self.crop_size * np.array(segment_minimum_ratio), 1)
             BOXES = BOXES[MASK]
-            
         if not BOXES.shape[0]:
             BOXES = self.boxes[:9]
-            
         self.boxes = BOXES
         crop_iter = BOXES
         BB_NDIMS_CHECK = np.ndim(bounding_box_with_class) == 3 and BOXES.shape[0] > 0
@@ -908,14 +868,9 @@ class anchor:
                     if not(res.shape[-1] == 5 and px.shape[-1] == 4):
                         print("SKIPPOY", res.shape[-1] == 5, px.shape[-1] == 4)
                         continue
-                    #print(res.shape, px.shape, res.ndim, px.ndim, image_outputs[index].shape, image_outputs[index].ndim)
-                    #try:
                     res[:, :4] = (res[:, : 4] - px[[1,0,1,0]]) / (px[[3,2]] - px[[1,0]])[[0,1,0,1]] * np.array(image_outputs[index].shape)[[1,0,1,0]]
-##                    except Exception as e:
-##                        print(res)
-##                        print(px)
-##                        print(image_outputs[index].shape)
                     yield np.expand_dims(image_outputs[index], 0), np.expand_dims(res, 0).astype(np.int16)
+
 
 def augment(im, bbwc, augment_seq = None):
     im = im[0]
@@ -960,6 +915,7 @@ def bb_intersection_over_union(boxA, boxB):
     # return the intersection over union value
     return iou
 
+
 def bb_intersection(boxA, boxB):
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])
@@ -972,6 +928,7 @@ def bb_intersection(boxA, boxB):
         i = interArea / min(boxAArea, boxBArea)
         return i
     return 0.0
+
 
 def sanity_check(gen):
     x,(y,z) = gen.__next__()
@@ -1029,10 +986,10 @@ def load_model_by_pik(f):
         model.AUGMENT_SEQ = config["AUGMENT_SEQ"]
         model.INPUT_PATHS = config["INPUT_PATHS"]
         return model
+
         
 class load_model:
     def __init__(self, MODEL_NAME, IMAGE_SHAPE, REGIONS, CLASSES, DROPOUT, BACKBONE, OPTIMIZER):
-        #def __init__(self, image_shape = (64, 64, 3), detection_region = 2, classes = 1000, backbone = "B0", dropout = 0.2):
         self.MODEL_NAME = MODEL_NAME
         self.IMAGE_SHAPE = IMAGE_SHAPE
         self.REGIONS = REGIONS
@@ -1055,6 +1012,7 @@ class load_model:
         self.NULL_RATIO = 1.0
         self.AUGMENT_SEQ = None
         self.INPUT_PATHS = None
+
         
     def load_input(self, paths):
         self.INPUT_PATHS = paths
@@ -1076,32 +1034,28 @@ class load_model:
                                 if os.path.splitext(fp)[1].lower() == ".json":
                                     self.model.load_vott(fp, category)
                                 elif os.path.splitext(fp)[1].lower() == ".csv":
-                                    self.model.load_csv(fp)
-                                         
+                                    self.model.load_csv(fp)                     
         tagfile = self.MODEL_NAME + ".csv"
         self.model.prepare(tagfile, 1.0)
+        
 
     def predict(self, fp, show = True, input_shape = None, anchor_size = None, nms_iou = None, segment_minimum_ratio = None, output_size = None, debug = False):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
             anchor_size = self.ANCHOR_SIZE
-
         if nms_iou:
             self.NMS_IOU = nms_iou
         else:
             nms_iou = self.NMS_IOU
-
         if segment_minimum_ratio:
             self.SEGMENT_MINIMUM_RATIO = segment_minimum_ratio
         else:
             segment_minimum_ratio = self.SEGMENT_MINIMUM_RATIO
-
         if output_size:
             self.OUTPUT_SIZE = output_size
         else:
             output_size = self.OUTPUT_SIZE
-        
         im, original_im, result_rawdata = self.model.predict(fp, \
                                                              input_shape = input_shape, \
                                                              anchor_size = anchor_size, \
@@ -1124,27 +1078,22 @@ class load_model:
             self.ANCHOR_SIZE = anchor_size
         else:
             anchor_size = self.ANCHOR_SIZE
-
         if train_test_ratio:
             self.TRAIN_TEST_RATIO = train_test_ratio
         else:
             train_test_ratio = self.TRAIN_TEST_RATIO
-
         if batch_size:
             self.BATCH_SIZE = batch_size
         else:
             batch_size = self.BATCH_SIZE
-
         if null_ratio != None:
             self.NULL_RATIO = null_ratio
         else:
             null_ratio = self.NULL_RATIO
-
         if augment_seq != None:
             self.AUGMENT_SEQ = augment_seq
         else:
             augment_seq = self.AUGMENT_SEQ
-            
         self.model.train(learning_rate = learning_rate, \
                          epoch = epoch, \
                          steps = steps, \
@@ -1156,8 +1105,10 @@ class load_model:
                          callback_earlystop = callback_earlystop)
         self.model.save(self.MODEL_NAME)
 
+
     def chart(self):
         self.model.chart()
+
 
     def segment_image(self, anchor_size):
         self.model.segment(self.MODEL_NAME, \
@@ -1165,9 +1116,11 @@ class load_model:
                            image_shape = (128, 128, 3), \
                            anchor_size = anchor_size)
 
+
     def save(self):
         self.model.save(self.MODEL_NAME)
         print("SAVED WEIGHTS")
+
 
     def load(self, path = None):
         if not path:
@@ -1178,50 +1131,44 @@ class load_model:
         except Exception as e:
             print(e)
 
+
     def sanity_check(self, batch_size = None, null_ratio = None, anchor_size = None, augment_seq = None):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
             anchor_size = self.ANCHOR_SIZE
-
         if batch_size:
             self.BATCH_SIZE = batch_size
         else:
             batch_size = self.BATCH_SIZE
-
         if null_ratio != None:
             self.NULL_RATIO = null_ratio
         else:
             null_ratio = self.NULL_RATIO
-
         if augment_seq != None:
             self.AUGMENT_SEQ = augment_seq
         else:
             augment_seq = self.AUGMENT_SEQ
-            
         self.model.sanity_check(batch_size = batch_size, \
                                 null_ratio = null_ratio, \
                                 anchor_size = anchor_size, \
                                 augment_seq = augment_seq)
+
 
     def folder_check(self, folder, anchor_size = None, nms_iou = None, segment_minimum_ratio = None):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
             anchor_size = self.ANCHOR_SIZE
-
         if nms_iou:
             self.NMS_IOU = nms_iou
         else:
             nms_iou = self.NMS_IOU
-
         if segment_minimum_ratio:
             self.SEGMENT_MINIMUM_RATIO = segment_minimum_ratio
         else:
             segment_minimum_ratio = self.SEGMENT_MINIMUM_RATIO
-
         output_size = self.OUTPUT_SIZE
-            
         images = [n.path for n in os.scandir(folder) if os.path.splitext(n.name)[1].lower() in (".jpg", ".png", ".bmp") and n.is_file()]
         max_len = 36
         len_images = len(images)
@@ -1235,6 +1182,7 @@ class load_model:
             row = i // sqr_grid
             col = i % sqr_grid
             fp = os.path.join(folder, fn)
+            print(i, "image trial")
             im, result_rawdata = self.predict(fp, \
                               show = False, \
                               input_shape = None, \
@@ -1251,22 +1199,20 @@ class load_model:
         plt.clf()
         plt.close()
 
+
     def trial(self, testfolder, anchor_size = None, nms_iou = None, segment_minimum_ratio = None):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
             anchor_size = self.ANCHOR_SIZE
-
         if nms_iou:
             self.NMS_IOU = nms_iou
         else:
             nms_iou = self.NMS_IOU
-
         if segment_minimum_ratio:
             self.SEGMENT_MINIMUM_RATIO = segment_minimum_ratio
         else:
             segment_minimum_ratio = self.SEGMENT_MINIMUM_RATIO
-            
         for f in os.listdir(testfolder):
             fp = os.path.join(testfolder, f)
             if os.path.isdir(fp):
@@ -1274,6 +1220,8 @@ class load_model:
                                   anchor_size = anchor_size, \
                                   nms_iou = nms_iou, \
                                   segment_minimum_ratio = segment_minimum_ratio)
+
+                
     def save_config(self):
         config = dict()
         config["MODEL_NAME"] = self.MODEL_NAME
@@ -1295,17 +1243,20 @@ class load_model:
         pik_file = self.MODEL_NAME + ".pik"
         with open(pik_file, "wb") as fio:
             pickle.dump(config, fio)
-
-        g = self.DET_MODEL.model.c.df.groupby(["category","source"])
+        g = self.model.c.df.groupby(["category","source"])
         l = list(g.groups.keys())
         with open("vott_files.txt", "w") as fio:
             for category, fp in l:
+                category = str(category)
+                fp = str(fp)
                 if os.path.splitext(fp)[-1].lower() == ".json":
                     fio.write(", ".join([category, fp]) + "\n")
+
 
 def from_hex(h):
     s = h.strip("#")
     return [int(s[:2],16), int(s[2:4], 16), int(s[4:], 16)]
+
 
 def hex2rgb(s):
     if len(s) == 7:
