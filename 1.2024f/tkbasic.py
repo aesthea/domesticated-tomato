@@ -596,7 +596,13 @@ class widget:
 ##        self.b14_frame.grid(column = 0, row = 14)
 ##        self.top_activate = Button(master = self.b14_frame, text = "TOP", relief="groove", font = self.bold_font, bd = 2, command = self.top_augment)
 ##        self.top_activate.pack(fill = BOTH, expand = True)
-        
+
+        self.b14_frame = Frame(master = self.frame2, width = 200, height = 25)
+        self.b14_frame.grid_propagate(0)
+        self.b14_frame.pack_propagate(0)
+        self.b14_frame.grid(column = 0, row = 14)
+        self.predict_debug_button = Button(master = self.b14_frame, text = "Debug Predict", relief="groove", font = self.bold_font, bd = 2, command = lambda : self.predict_image(debug=True))
+        self.predict_debug_button.pack(fill = BOTH, expand = True)
 
         #FRAME3
         self.label(self.frame3, 600, 25, 0, 0, "MODEL SETTING", columnspan = 2)
@@ -963,6 +969,7 @@ class widget:
         el.set("")
         return None
 
+
     def update(self, event = None):
         #print("update")
         augment = self.value_type(self.inputs["augment"], int)
@@ -1008,11 +1015,12 @@ class widget:
 
         with open("main_config.pik", "wb") as fio:
             pickle.dump(self.data, fio)
-
+            
         if self.data["savefile"]:
             if len(self.data["savefile"]) > 3:
                 with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
                     pickle.dump(self.data, fio)
+
 
     def segment_image(self):
         if not self.setting_check_for_model():
@@ -1029,6 +1037,7 @@ class widget:
 
 
     def train(self, early_stopping = False):
+        self.update()
         if not self.setting_check_for_model():
             self.load_model()
             print("PLEASE LOAD WEIGHT")
@@ -1037,13 +1046,11 @@ class widget:
             print("MODEL NOT SET, LOADING MODEL")
             self.load_model()
             return False
-        self.update()
-        self.DET_MODEL.load_input(self.data["input_files"])
+        LOAD_SEGMENT = False
         if os.path.isdir(self.data["savefile"]):
             if len(os.listdir(self.data["savefile"])) > 10:
                 if messagebox.askyesno(title="segment", message="Run with segmented images?"):
-                    self.DET_MODEL.load_input([self.data["savefile"]])
-            
+                    LOAD_SEGMENT = True
         EPOCH = simpledialog.askstring(title="Train", prompt="How many EPOCH?:")
         if EPOCH:
             try:
@@ -1054,6 +1061,11 @@ class widget:
                 return False
         else:
             return False
+        print("LOADING IMAGE DATA")
+        if LOAD_SEGMENT:
+            self.DET_MODEL.load_input([self.data["savefile"]])
+        self.DET_MODEL.load_input(self.data["input_files"])
+        print("PREPARE TO TRAIN")
         ANCHOR_SIZE = self.value_type(self.inputs["anchor_size"], int)
         BATCH_SIZE = self.value_type(self.inputs["batch_size"], int)
         NULL_RATIO = self.value_type(self.inputs["null_ratio"], float)
@@ -1061,9 +1073,7 @@ class widget:
         LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
-
         print("TRAINING : ", EPOCH, "Learning rate : ", LEARNING_RATE)
-        
         self.DET_MODEL.train(LEARNING_RATE, \
                              EPOCH, \
                              STEPS, \
@@ -1073,10 +1083,10 @@ class widget:
                              NULL_RATIO, \
                              AUGMENT, \
                              callback_earlystop = early_stopping)
-
         self.DET_MODEL.save()
         self.DET_MODEL.chart()
         self.DET_MODEL.save_config()
+
         
     def save(self):
         if not self.DET_MODEL:
@@ -1095,7 +1105,6 @@ class widget:
             print("MODEL NOT SET, LOADING A MODEL")
             self.load_model()
             return False
-        
         self.DET_MODEL.load()
 
 
@@ -1120,7 +1129,6 @@ class widget:
                              ANCHOR_SIZE, \
                              nms_iou = 0.01, \
                              segment_minimum_ratio = 0.75)
-
         print("TRIAL END")
 
         
@@ -1128,18 +1136,18 @@ class widget:
         self.update()
         if not self.setting_check_for_model():
             self.load_model()
-        
         if not self.DET_MODEL:
             print("MODEL NOT SET, LOADING MODEL")
             self.load_model()
-
+        LOAD_SEGMENT = False
         if not np.any(self.DET_MODEL.model.c.df):
-            self.DET_MODEL.load_input(self.data["input_files"])
             if os.path.isdir(self.data["savefile"]):
                 if len(os.listdir(self.data["savefile"])) > 10:
                     if messagebox.askyesno(title="segment", message="Run with segmented images?"):
-                        self.DET_MODEL.load_input([self.data["savefile"]])
-            
+                        LOAD_SEGMENT = True
+        if LOAD_SEGMENT:                
+            self.DET_MODEL.load_input([self.data["savefile"]])
+        self.DET_MODEL.load_input(self.data["input_files"])
         ANCHOR_SIZE = self.value_type(self.inputs["anchor_size"], int)
         BATCH_SIZE = self.value_type(self.inputs["batch_size"], int)
         NULL_RATIO = self.value_type(self.inputs["null_ratio"], float)
@@ -1147,13 +1155,13 @@ class widget:
         LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
-
         self.DET_MODEL.sanity_check(BATCH_SIZE, \
                                     NULL_RATIO, \
                                     ANCHOR_SIZE, \
                                     AUGMENT)
 
-    def predict_image(self):
+
+    def predict_image(self, debug = False):
         if not self.setting_check_for_model():
             self.load_model()
             print("PLEASE LOAD WEIGHT")
@@ -1182,7 +1190,7 @@ class widget:
                                    nms_iou = 0.01, \
                                    segment_minimum_ratio = 0.75, \
                                    output_size = None, \
-                                   debug = False)
+                                   debug = debug)
             self.initialdir = os.path.split(filename)[0]
         
         

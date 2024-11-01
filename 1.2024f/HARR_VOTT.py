@@ -168,10 +168,37 @@ class loader:
         self.df_label = df
 
 
-    def frac(self, frac = 0.7):
+    def frac(self, frac = 0.7, normalize = False):
         g = self.df.groupby("path")
         self.group_indice = g.indices
         li = list(self.group_indice.keys())
+
+        if normalize:
+            print("NORMALIZING POPULATION")
+            #--added----------------------
+            g2 = self.df.groupby(["category", "label"])
+            li2 = list(g2.groups.keys())
+            max_population = 0
+            for k in li2:
+                if type(k[0]) == float and type(k[1]) == float:
+                    if np.isnan(k[0]) and np.isnan(k[1]):
+                        continue
+                n = list(self.df.iloc[g2.indices[k]].groupby("path").indices.keys())
+                if len(n) > max_population:
+                    max_population = len(n)
+                #print(k, len(n))
+            #print("max_population", max_population)
+            newli = []
+            for k in li2:
+                if type(k[0]) == float and type(k[1]) == float:
+                    if np.isnan(k[0]) and np.isnan(k[1]):
+                        continue
+                n = list(self.df.iloc[g2.indices[k]].groupby("path").indices.keys())
+                nl = random.sample(n * ( max_population // len(n) + 10), max_population)
+                newli.extend(nl)
+            li.extend(newli)
+            #-------------------------------
+        
         random.shuffle(li)
         self.train = li[: int(len(li) * frac)]
         self.test = li[int(len(li) * frac) : ]        
@@ -451,7 +478,7 @@ class detection_model:
               callback_earlystop = False):
         self.m.optimizer.learning_rate = learning_rate
         print("PREPARE TRAIN BATCH")
-        self.c.frac(train_test_ratio)
+        self.c.frac(train_test_ratio, True)
         train = self.c.batch(test_mode = False, \
                              regions = self.regions, \
                              null_label = self.null, \
@@ -533,7 +560,7 @@ class detection_model:
             if 'sanity_check_sample' in dir(self):
                 del(self.sanity_check_sample)
         if 'sanity_check_sample' not in dir(self):            
-            self.c.frac(1.0)
+            self.c.frac(1.0, True)
             self.sanity_check_sample = self.c.batch(test_mode = False, \
                                                     regions = self.regions, \
                                                     null_label = self.null, \
@@ -1266,7 +1293,7 @@ def hex2rgb(s):
 
 def model():
     #__init__(self, MODEL_NAME, IMAGE_SHAPE, REGIONS, CLASSES, DROPOUT, BACKBONE):
-    m = load_model("NAME", (96, 96, 3), 2, 100, 0.2,  "MobileNetV2", "Adam")
+    m = load_model("test", (96, 96, 3), 2, 100, 0.2,  "MobileNetV2", "Adam")
     paths = ["C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv", \
              "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/AI_Auto_Cap/output/vott-json-export/OG_auto_capacitance_OK-export.json", \
              "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/test", \
