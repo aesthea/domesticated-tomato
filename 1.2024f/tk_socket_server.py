@@ -20,8 +20,6 @@ import base64
 from io import BytesIO
 
 
-
-
 #SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/HARR_VOTT.py"
 SPEC_LOADER = None
 
@@ -30,6 +28,7 @@ MAX_SIZE = 2**22
 
 if not SPEC_LOADER:
     import HARR_VOTT
+    import fixes
     PIK = "main_config.pik"
     PORT = None
 else:
@@ -39,6 +38,13 @@ else:
     spec.loader.exec_module(HARR_VOTT)
     PIK = os.path.join(os.path.split(SPEC_LOADER)[0], "main_config.pik")
     PORT = 7788
+    fixes_spec_path = os.path.join(os.path.split(SPEC_LOADER)[0], "fixes.py")
+    fixes_spec = importlib.util.spec_from_file_location("fixes", fixes_spec_path)
+    fixes = importlib.util.module_from_spec(fixes_spec)
+    fixes_spec.loader.exec_module(fixes)
+
+#fix asyncio OSError fail.
+asyncio.windows_events.IocpProactor = fixes.IocpProactor
 
 if not os.path.isdir("c:/test"):
     os.mkdir("c:/test")
@@ -69,8 +75,9 @@ async def handler(websocket, path, model, port_no):
                 if "args" in data:
                     if "server" in data["args"]:
                         if "load_weight" in data["args"]["server"]:
-                            #load_model()
                             model.load(model.LOADPATH)
+                        if "stop_server" in data["args"]["server"]:
+                            asyncio.get_event_loop().stop()
                     if "anchor_size" in data["args"]:
                         result["anchor_size"] = data["args"]["anchor_size"]
                     if "nms_iou" in data["args"]:
@@ -310,5 +317,3 @@ if __name__ == "__main__":
                 system("title %s SERVER" % PORT)
                 asyncio.get_event_loop().run_until_complete(start_server_00)
                 asyncio.get_event_loop().run_forever()
-               
-
