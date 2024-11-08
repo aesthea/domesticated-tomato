@@ -3,6 +3,8 @@ import tensorflow_addons as tfa
 import layer
 import copy
 
+#V10 2024-11-08
+
 def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, dropout = 0.2, backbone = "B0"):
     x_in = tf.keras.Input(shape = input_shape)
     if backbone == "B0":
@@ -38,61 +40,38 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
 
     layer_block = []
     cur_shape = None
+    has_add = False
     for i, j in enumerate(backbone.layers):
         #print(i, j.name, j.output.shape)
-        if "add" in j.name:
-            #print(j.name, j.output.shape)
+        if "add" in j.name.lower():
+            has_add = True
             if j.output.shape != cur_shape:
                 cur_shape = j.output.shape
                 layer_block.append(j.output)
             else:
                 layer_block[-1] = j.output
-
+        if "project_bn" in j.name.lower() and has_add:
+            if j.output.shape != cur_shape:
+                cur_shape = j.output.shape
+                layer_block.append(j.output)
+            else:
+                layer_block[-1] = j.output
+                
     beforeFPN = []
     for i, j in enumerate(layer_block):
+        print("layer block", i, j.name, j.shape)
         c = tf.keras.layers.Dropout(dropout)(j)
         beforeFPN.append(c)
         
-    f3 = biFPN(beforeFPN, end_activation = tf.keras.layers.LeakyReLU(), sequence = 3)
-    #f2 = biFPN(f1, end_activation = tf.keras.layers.LeakyReLU(), sequence = 2)
-    #f3 = biFPN(f2, end_activation = tf.keras.layers.LeakyReLU(), sequence = 3)
-    #f3 = beforeFPN
-    #f3 = f1
-
-    for i, j in enumerate(layer_block):
-        print("layer block", i, j.name, j.shape)
-        
-    global_avg_pool = []
-    for i, j in enumerate(f3):
-        pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
-        global_avg_pool.append(pooling)
-        
-    r = tf.keras.layers.Concatenate(axis=-1)(global_avg_pool)
-
-    print(r.shape)
-    
-    b = tf.keras.layers.Dense(4 * detection_region, name = "dense_regression")(r)
-    b = tf.keras.layers.Reshape([detection_region, 4], name = "reshape_regression")(b)
-    b = tf.keras.layers.Activation('sigmoid', name = "activation_regression")(b)
-    regression = tf.keras.layers.Layer(name = "regression")(b)
-
-    c = tf.keras.layers.Dense(num_classes * detection_region,  name = "dense_classification")(r)
-    c = tf.keras.layers.Reshape([detection_region, num_classes], name = "reshape_classification")(c)
-    c = tf.keras.layers.BatchNormalization(axis=-1, name = "BN_classification")(c)
-    c = tf.keras.layers.Activation('softmax', name = "activation_classification")(c)
-    classification = tf.keras.layers.Layer(name = "classification")(c)
-    
-    model = tf.keras.Model(x_in, [classification, regression])
-    return model
-
-
-def biFPN(layers, KERNELS = 3, end_activation = "relu", dropout = 0.2, sequence = 1):
-    output_block = [[None for n in layers] for m in range(sequence)]
-    
+    #BiFPN
+    end_activation = tf.keras.layers.LeakyReLU()
+    KERNELS = 3
+    sequence = 3
+    output_block = [[None for n in beforeFPN] for m in range(sequence)]
     #downsampling
     for seq in range(sequence):
         if seq == 0:
-            input_block = layers
+            input_block = beforeFPN
         else:
             input_block = output_block[seq - 1]
         for i, k in enumerate(input_block):
@@ -112,14 +91,13 @@ def biFPN(layers, KERNELS = 3, end_activation = "relu", dropout = 0.2, sequence 
                 to_output_block = tf.keras.layers.BatchNormalization(name = "fpn_%02d_output_%02d_BN" % (seq, i))(carry_block)
                 to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                 output_block[seq][i] = to_output_block
-
         #upsampling
         output_block[seq].reverse()
         for ri, k in enumerate(output_block[seq]):
             i = len(output_block[seq]) - (ri + 1)
             if i > 0:
                 if i < len(input_block) - 1:
-                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([input_block[i], carry_block, output_block[seq][ri]])
+                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([input_block[i], carry_block, output_block[seq][ri] * 0.3])
                     to_output_block = tf.keras.layers.BatchNormalization(name = "fpn_%02d_output_%02d_BN" % (seq, i))(carry_block)
                     to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                     output_block[seq][ri] = to_output_block
@@ -134,8 +112,27 @@ def biFPN(layers, KERNELS = 3, end_activation = "relu", dropout = 0.2, sequence 
                 to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                 output_block[seq][ri] = carry_block
         output_block[seq].reverse()
-    return output_block[seq]
+        
+    global_avg_pool = []
+    for i, j in enumerate(output_block[-1]):
+        pooling = tf.keras.layers.GlobalAveragePooling2D(name = "global_average_pooling2d_%02d_%02d" % (j.shape[1], j.shape[3]))(j)
+        global_avg_pool.append(pooling)
+        
+    r = tf.keras.layers.Concatenate(axis=-1)(global_avg_pool)
+    r = tf.keras.layers.Dropout(dropout)(r)
 
+    print(r.shape)
+    
+    b = tf.keras.layers.Dense(4 * detection_region, activation = "sigmoid", name = "dense_regression")(r)
+    b = tf.keras.layers.Reshape([detection_region, 4], name = "reshape_regression")(b)
+    regression = tf.keras.layers.Layer(name = "regression")(b)
+
+    c = tf.keras.layers.Dense(num_classes * detection_region,  activation = "softmax", name = "dense_classification")(r)
+    c = tf.keras.layers.Reshape([detection_region, num_classes], name = "reshape_classification")(c)
+    classification = tf.keras.layers.Layer(name = "classification")(c)
+    
+    model = tf.keras.Model(x_in, [classification, regression])
+    return model
 
 fl = tf.keras.losses.Huber(reduction = 'sum')
 gl = tfa.losses.GIoULoss()
@@ -145,10 +142,6 @@ def regression_loss(y_true, y_pred):
     return g + f
 
 classification_loss = tf.keras.losses.SparseCategoricalCrossentropy()
-
-
-def experiment_loss(L1, L2):
-    print(L1, L2)
 
 def checkFPN(model):
     for i in model.layers:
