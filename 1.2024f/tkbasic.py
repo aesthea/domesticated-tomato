@@ -1139,15 +1139,15 @@ class widget:
         if not self.DET_MODEL:
             print("MODEL NOT SET, LOADING MODEL")
             self.load_model()
-        LOAD_SEGMENT = False
         if not np.any(self.DET_MODEL.model.c.df):
+            LOAD_SEGMENT = False
             if os.path.isdir(self.data["savefile"]):
                 if len(os.listdir(self.data["savefile"])) > 10:
                     if messagebox.askyesno(title="segment", message="Run with segmented images?"):
                         LOAD_SEGMENT = True
-        if LOAD_SEGMENT:                
-            self.DET_MODEL.load_input([self.data["savefile"]])
-        self.DET_MODEL.load_input(self.data["input_files"])
+            if LOAD_SEGMENT:                
+                self.DET_MODEL.load_input([self.data["savefile"]])
+            self.DET_MODEL.load_input(self.data["input_files"])
         ANCHOR_SIZE = self.value_type(self.inputs["anchor_size"], int)
         BATCH_SIZE = self.value_type(self.inputs["batch_size"], int)
         NULL_RATIO = self.value_type(self.inputs["null_ratio"], float)
