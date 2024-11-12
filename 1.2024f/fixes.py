@@ -454,9 +454,11 @@ class IocpProactor:
             except OSError as exc:
                 if exc.winerror in (_overlapped.ERROR_NETNAME_DELETED,
                                     _overlapped.ERROR_OPERATION_ABORTED):
-                    raise ConnectionResetError(*exc.args)
+                    #raise ConnectionResetError(*exc.args)
+                    print("L458, prevent raise error, ", *exc.args)
                 else:
-                    raise
+                    #raise
+                    print("L461, prevent raise error")
 
         return self._register(ov, conn, finish_recv)
 

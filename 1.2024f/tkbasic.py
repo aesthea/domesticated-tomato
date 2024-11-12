@@ -737,6 +737,14 @@ class widget:
         self.logslider(self.frame3, 100, 200, 25, 9, 0, "Learning rate", "learning_rate", font_size = self.normal_font, min_value=0.01, max_value=0.0001, bind=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 9, 1, "training steps", "steps", font_size = self.normal_font, min_value =10, max_value = 100, interval = 10, bind=self.update)
 
+        self.normalize_frac_frame = Frame(master = self.frame3, width = 300, height = 25)
+        self.normalize_frac_frame.grid_propagate(0)
+        self.normalize_frac_frame.pack_propagate(0)
+        self.normalize_frac_frame.grid(column = 0, row = 10, columnspan = 1)
+        self.normalize_frac_value = BooleanVar(self.root)
+        self.normalize_frac_check = Checkbutton(self.normalize_frac_frame, text='Normalize Frac', variable = self.normalize_frac_value, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
+        self.normalize_frac_check.pack(fill = BOTH, expand = True)      
+        
         self.augment_button_frame = Frame(master = self.frame3, width = 300, height = 25)
         self.augment_button_frame.grid_propagate(0)
         self.augment_button_frame.pack_propagate(0)
@@ -918,6 +926,16 @@ class widget:
         else:
             self.inputs["augment"].set(255)
             self.data["augment"] = 255
+
+        if "normalize_frac" in self.data:
+            if self.data["normalize_frac"]:
+                self.normalize_frac_value.set(self.data["normalize_frac"])
+            else:
+                self.normalize_frac_value.set(False)
+                self.data["normalize_frac"] = False
+        else:
+            self.normalize_frac_value.set(False)
+            self.data["normalize_frac"] = False
         #self.update()
         
             
@@ -942,6 +960,7 @@ class widget:
             self.loaded_settings["dropout"] = DROPOUT
             self.loaded_settings["backbone"] = BACKBONE
             self.loaded_settings["optimizer"] = OPTIMIZER
+
 
     def setting_check_for_model(self):
         self.update()
@@ -1003,7 +1022,7 @@ class widget:
         
         self.data["testfolder"] = self.value_type(self.inputs["testfolder"], str)
         self.data["optimizer"] = self.value_type(self.optimizer, str)
-
+        self.data["dropout"] = self.value_type(self.inputs["dropout"], float)
 
         self.data["train_test_ratio"] = self.value_type(self.inputs["train_test_ratio"], float)
         self.data["learning_rate"] = self.value_type(self.inputs["learning_rate"], float)
@@ -1012,6 +1031,8 @@ class widget:
 
         self.data["port"] = self.value_type(self.inputs["port"], int)
         self.data["augment"] = self.value_type(self.inputs["augment"], int)
+
+        self.data["normalize_frac"] = self.normalize_frac_value.get()
 
         with open("main_config.pik", "wb") as fio:
             pickle.dump(self.data, fio)
@@ -1073,6 +1094,7 @@ class widget:
         LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
+        NORMALIZE_FRAC = self.normalize_frac_value.get()
         print("TRAINING : ", EPOCH, "Learning rate : ", LEARNING_RATE)
         self.DET_MODEL.train(LEARNING_RATE, \
                              EPOCH, \
@@ -1082,7 +1104,8 @@ class widget:
                              ANCHOR_SIZE, \
                              NULL_RATIO, \
                              AUGMENT, \
-                             callback_earlystop = early_stopping)
+                             callback_earlystop = early_stopping, \
+                             normalize_frac = NORMALIZE_FRAC)
         self.DET_MODEL.save()
         self.DET_MODEL.chart()
         self.DET_MODEL.save_config()
@@ -1155,10 +1178,12 @@ class widget:
         LEARNING_RATE = self.value_type(self.inputs["learning_rate"], float)
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
+        NORMALIZE_FRAC = self.normalize_frac_value.get()
         self.DET_MODEL.sanity_check(BATCH_SIZE, \
                                     NULL_RATIO, \
                                     ANCHOR_SIZE, \
-                                    AUGMENT)
+                                    AUGMENT, \
+                                    normalize_frac = NORMALIZE_FRAC)
 
 
     def predict_image(self, debug = False):
@@ -1205,7 +1230,6 @@ class widget:
         self.toplevel_b.grid_propagate(0)
         self.toplevel_b.pack_propagate(0)
         self.toplevel_b.grid(column = 0, row = 1)
-        
         self.augment_01 = Checkbutton(self.toplevel_a, text='AverageBlur', variable = self.augment_01_var, onvalue="1", offvalue="0", font = self.small_font, command = self.augment_change)
         self.augment_01.grid(column = 0, row = 0, sticky = W)
         self.augment_02 = Checkbutton(self.toplevel_a, text='AdditiveGaussianNoise', variable = self.augment_02_var, onvalue="1", offvalue="0", font = self.small_font, command = self.augment_change)
@@ -1222,6 +1246,7 @@ class widget:
         self.augment_07.grid(column = 0, row = 6, sticky = W)
         self.augment_08 = Checkbutton(self.toplevel_a, text='Flipud', variable = self.augment_08_var, onvalue="1", offvalue="0", font = self.small_font, command = self.augment_change)
         self.augment_08.grid(column = 0, row = 7, sticky = W)
+
         
     def augment_change(self):
         b = '0000000000'
@@ -1237,6 +1262,7 @@ class widget:
         self.inputs["augment"].set(augment)
         self.top_augment_activate.config(text = "Augment : %s" % augment)
         self.update()
+
         
     def top_assign_apply_button_press(self):
         self.update()
@@ -1253,30 +1279,28 @@ class widget:
         self.vid_top = Toplevel(self.root)
         self.vid_top_a = Frame(master = self.vid_top, bg = "blue", width = 480, height = 480)
         self.vid_top_a.grid(column = 0, row = 0)
-
         self.console_image_canvas = Canvas(master = self.vid_top_a, bg = "black", width = 480, height = 480)
         self.console_image_canvas.grid(column = 0, row = 0)
         self.console_image_canvas.bind('<Button>', self.canvas_click)
-
-        
         self.vid_top_b = Frame(master = self.vid_top, bg = "red", width = 480, height = 25)
         self.vid_top_b.grid(column = 0, row = 1)
-
         self.camera = camera.camera()
         self.camera_radio = {}
         self.camera_select_value = IntVar(self.root)
-        
         for i, camera_index in enumerate(self.camera.device_array):
             self.camera_radio[camera_index] = Radiobutton(self.vid_top_b, text="dv%01d" % camera_index, variable = self.camera_select_value, value = camera_index, font = self.normal_font, command = self.switch_camera)
             self.camera_radio[camera_index].grid(column = i, row = 0)
+
 
     def switch_camera(self, event = None):
         self.camera.close()
         self.camera.connect(self.camera_select_value.get())
         self.loop()
 
+
     def canvas_click(self, event):
         print(event)
+
 
     def update_canvas(self):
         if type(self.camera.device_index) != int:
@@ -1312,7 +1336,6 @@ class widget:
                     color = HARR_VOTT.from_hex(data["color"])
                 else:
                     color = [255, 0, 0]
-
                 if "x1" in data and "x2" in data and "y1" in data and "y2" in data and "h" in data and "w" in data and "tag" in data and "score" in data:
                     x1 = math.floor((data["x1"] / data["w"]) * width)
                     x2 = math.ceil((data["x2"] / data["w"]) * width)
@@ -1322,10 +1345,10 @@ class widget:
                     image[y1 : y2, x2 - lw : x2] = color
                     image[y1 : y1 + lw, x1 : x2] = color
                     image[y2 - lw: y2, x1 : x2] = color
-
                     cv2.putText(image, data["tag"], (x1 + 1, y1 + 10), cv2.FONT_HERSHEY_PLAIN, 1, color, 1)
                     cv2.putText(image, "%02d%%" % (data["score"] * 100), (x1 + 1, y1 + 18), cv2.FONT_HERSHEY_PLAIN, 0.6, color)
         return image
+
     
     def loop(self):
         try:
@@ -1340,6 +1363,7 @@ class widget:
             self.l = self.root.after(CYCLETIME , self.loop)
         else:
             self.camera.close()
+
             
     def cycle(self):
         if self.THREAD:
@@ -1356,6 +1380,7 @@ class widget:
         else:
             return None
 
+
     def camera_detect(self, event = None):
         if self.THREAD:
             if self.THREAD.is_alive():
@@ -1370,10 +1395,10 @@ class widget:
             break
         if not ret:
             return None
-
         self.THREAD = self.worker(self.camera_predict, (im, ))
         if self.THREAD:
             self.THREAD.start()
+
 
     def camera_predict(self, args):
         if np.any(args):
@@ -1382,7 +1407,6 @@ class widget:
                     x, y = self.DET_MODEL.predict(args, False)
                     self.STRINGVAR.set(json.dumps(eval(str(y))))
                     print("DONE DETECT")
-        
         
     
 def run():

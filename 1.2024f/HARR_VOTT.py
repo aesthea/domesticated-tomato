@@ -475,10 +475,11 @@ class detection_model:
               anchor_size = 4, \
               null_ratio = 1.0, \
               augment_seq = None, \
-              callback_earlystop = False):
+              callback_earlystop = False,
+              normalize_frac = True):
         self.m.optimizer.learning_rate = learning_rate
         print("PREPARE TRAIN BATCH")
-        self.c.frac(train_test_ratio, True)
+        self.c.frac(train_test_ratio, normalize_frac)
         train = self.c.batch(test_mode = False, \
                              regions = self.regions, \
                              null_label = self.null, \
@@ -550,17 +551,18 @@ class detection_model:
             print(e)
 
         
-    def sanity_check(self, batch_size = 36, null_ratio = 1.0, anchor_size = 4, augment_seq = None):
+    def sanity_check(self, batch_size = 36, null_ratio = 1.0, anchor_size = 4, augment_seq = None, normalize_frac = True):
         original_option = copy.copy(self.options)
         self.options["batch_size"] = batch_size
         self.options["anchor_size"] = anchor_size
         self.options["null_ratio"] = null_ratio
         self.options["seq"] = augment_seq
+        self.options["normalize_frac"] = normalize_frac
         if original_option != self.options:
             if 'sanity_check_sample' in dir(self):
                 del(self.sanity_check_sample)
         if 'sanity_check_sample' not in dir(self):            
-            self.c.frac(1.0, True)
+            self.c.frac(1.0, normalize_frac)
             self.sanity_check_sample = self.c.batch(test_mode = False, \
                                                     regions = self.regions, \
                                                     null_label = self.null, \
@@ -1100,7 +1102,7 @@ class load_model:
             return im, result_rawdata
 
 
-    def train(self, learning_rate = 0.01, epoch = 10, steps = 10, train_test_ratio = None, batch_size = None, anchor_size = None, null_ratio = None, augment_seq = None, callback_earlystop = False):
+    def train(self, learning_rate = 0.01, epoch = 10, steps = 10, train_test_ratio = None, batch_size = None, anchor_size = None, null_ratio = None, augment_seq = None, callback_earlystop = False, normalize_frac = True):
         if anchor_size:
             self.ANCHOR_SIZE = anchor_size
         else:
@@ -1129,7 +1131,8 @@ class load_model:
                          anchor_size = anchor_size, \
                          null_ratio = null_ratio, \
                          augment_seq = augment_seq, \
-                         callback_earlystop = callback_earlystop)
+                         callback_earlystop = callback_earlystop, \
+                         normalize_frac = normalize_frac)
         self.model.save(self.MODEL_NAME)
 
 
@@ -1159,7 +1162,7 @@ class load_model:
             print(e)
 
 
-    def sanity_check(self, batch_size = None, null_ratio = None, anchor_size = None, augment_seq = None):
+    def sanity_check(self, batch_size = None, null_ratio = None, anchor_size = None, augment_seq = None, normalize_frac = True):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
@@ -1179,7 +1182,8 @@ class load_model:
         self.model.sanity_check(batch_size = batch_size, \
                                 null_ratio = null_ratio, \
                                 anchor_size = anchor_size, \
-                                augment_seq = augment_seq)
+                                augment_seq = augment_seq, \
+                                normalize_frac = normalize_frac)
 
 
     def folder_check(self, folder, anchor_size = None, nms_iou = None, segment_minimum_ratio = None):
