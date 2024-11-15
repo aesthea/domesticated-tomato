@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow_addons as tfa
-import layer
 import copy
+from tensorflow.keras import backend as K
 
 #V11 2024-11-12
 
@@ -134,7 +134,15 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
     model = tf.keras.Model(x_in, [classification, regression])
     return model
 
-fl = tf.keras.losses.Huber(reduction = 'sum')
+
+def dice_loss(y_true, y_pred, smooth=1):
+  intersection = K.sum(y_true * y_pred)
+  union = K.sum(y_true) + K.sum(y_pred)
+  dice = (2. * intersection + smooth) / (union + smooth)
+  return 1 - dice
+
+#fl = tf.keras.losses.Huber(reduction = 'sum')
+fl = tf.keras.losses.Huber()
 gl = tfa.losses.GIoULoss()
 def regression_loss(y_true, y_pred):
     f = fl(y_true, y_pred, 1.0)
