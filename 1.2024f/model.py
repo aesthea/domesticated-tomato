@@ -3,7 +3,7 @@ import tensorflow_addons as tfa
 import copy
 from tensorflow.keras import backend as K
 
-#V11 2024-11-12
+#V12 2024-11-19
 
 def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, dropout = 0.2, backbone = "B0"):
     x_in = tf.keras.Input(shape = input_shape)
@@ -50,18 +50,20 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
                 layer_block.append(j.output)
             else:
                 layer_block[-1] = j.output
-        if "project_bn" in j.name.lower() and has_add:
-            if j.output.shape != cur_shape:
-                cur_shape = j.output.shape
-                layer_block.append(j.output)
-            else:
-                layer_block[-1] = j.output
+##        if "project_bn" in j.name.lower() and has_add:
+##            if j.output.shape != cur_shape:
+##                cur_shape = j.output.shape
+##                layer_block.append(j.output)
+##            else:
+##                layer_block[-1] = j.output
                 
     beforeFPN = []
     for i, j in enumerate(layer_block):
         print("layer block", i, j.name, j.shape)
         c = tf.keras.layers.Dropout(dropout)(j)
         beforeFPN.append(c)
+
+    beforeFPN.reverse()
         
     #BiFPN
     end_activation = tf.keras.layers.LeakyReLU()
@@ -69,7 +71,7 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
     sequence = 3
     bn_axis = 3
     output_block = [[None for n in beforeFPN] for m in range(sequence)]
-    #downsampling
+    #upsampling
     for seq in range(sequence):
         if seq == 0:
             input_block = beforeFPN
@@ -78,37 +80,41 @@ def edet(input_shape = (256, 256, 3), num_classes = 1000, detection_region = 5, 
         for i, k in enumerate(input_block):
             if i < len(input_block) - 1:
                 k2 = input_block[i + 1]
-                strides = int(k.shape[1] // k2.shape[1])
+                strides = int(k2.shape[1] // k.shape[1])
                 if i == 0:
-                    carry_block = tf.keras.layers.Conv2D(filters=k2.shape[-1], kernel_size=KERNELS, strides=strides, padding='same', activation = end_activation, name = "fpn_%02d_downsample_%02d_Conv2D" % (seq, i))(k)
+                    #carry_block = tf.keras.layers.Conv2D(filters=k2.shape[-1], kernel_size=KERNELS, strides=strides, padding='same', activation = end_activation, name = "fpn_%02d_downsample_%02d_Conv2D" % (seq, i))(k)
+                    carry_block = tf.keras.layers.Conv2DTranspose(k2.shape[-1], KERNELS, strides=(strides, strides), padding="same", activation = end_activation, name = "fpn_%02d_upsample_%02d_Conv2DTranspose" % (seq, i))(k)
                     output_block[seq][i] = k
                 else:
-                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_dn_add_%02d" % (seq, i))([k, carry_block])
+                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([k, carry_block])
                     output_block[seq][i] = carry_block
-                    carry_block = tf.keras.layers.Conv2D(filters=k2.shape[-1], kernel_size=KERNELS, strides=strides, padding='same', activation = end_activation, name = "fpn_%02d_downsample_%02d_Conv2D" % (seq, i))(carry_block)
-                    carry_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_downsampling_%02d_BN" % (seq, i))(carry_block)
+                    #carry_block = tf.keras.layers.Conv2D(filters=k2.shape[-1], kernel_size=KERNELS, strides=strides, padding='same', activation = end_activation, name = "fpn_%02d_downsample_%02d_Conv2D" % (seq, i))(carry_block)
+                    carry_block = tf.keras.layers.Conv2DTranspose(k2.shape[-1], KERNELS, strides=(strides, strides), padding="same", activation = end_activation, name = "fpn_%02d_upsample_%02d_Conv2DTranspose" % (seq, i))(carry_block)
+                    carry_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_upsample_%02d_BN" % (seq, i))(carry_block)
             else:
-                carry_block = tf.keras.layers.Add(name = "fpn_%02d_dn_add_%02d" % (seq, i))([k, carry_block])
+                carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([k, carry_block])
                 to_output_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_output_%02d_BN" % (seq, i))(carry_block)
                 #to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                 output_block[seq][i] = to_output_block
-        #upsampling
+                
+        #downsampling
         output_block[seq].reverse()
         for ri, k in enumerate(output_block[seq]):
             i = len(output_block[seq]) - (ri + 1)
             if i > 0:
                 if i < len(input_block) - 1:
-                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([input_block[i], carry_block, output_block[seq][ri]])
+                    carry_block = tf.keras.layers.Add(name = "fpn_%02d_down_add_%02d" % (seq, i))([input_block[i], carry_block, output_block[seq][ri]])
                     to_output_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_output_%02d_BN" % (seq, i))(carry_block)
                     #to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                     output_block[seq][ri] = to_output_block
                 k2 = input_block[i - 1]
-                strides = k2.shape[1] // k.shape[1]
-                carry_block = tf.keras.layers.Conv2DTranspose(k2.shape[-1], KERNELS, strides=(strides, strides), padding="same", activation = end_activation, name = "fpn_%02d_upsample_%02d_Conv2DTranspose" % (seq, i))(carry_block)
-                carry_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_upsampling_%02d_BN" % (seq, i))(carry_block)
+                strides = k.shape[1] // k2.shape[1]
+                #carry_block = tf.keras.layers.Conv2DTranspose(k2.shape[-1], KERNELS, strides=(strides, strides), padding="same", activation = end_activation, name = "fpn_%02d_upsample_%02d_Conv2DTranspose" % (seq, i))(carry_block)
+                carry_block = tf.keras.layers.Conv2D(filters=k2.shape[-1], kernel_size=KERNELS, strides=strides, padding='same', activation = end_activation, name = "fpn_%02d_downsample_%02d_Conv2D" % (seq, i))(carry_block)
+                carry_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_downsample_%02d_BN" % (seq, i))(carry_block)
                 carry_block = tf.keras.layers.Dropout(dropout)(carry_block)
             else:
-                carry_block = tf.keras.layers.Add(name = "fpn_%02d_up_add_%02d" % (seq, i))([input_block[i], carry_block])
+                carry_block = tf.keras.layers.Add(name = "fpn_%02d_down_add_%02d" % (seq, i))([input_block[i], carry_block])
                 to_output_block = tf.keras.layers.BatchNormalization(axis=bn_axis, name = "fpn_%02d_output_%02d_BN" % (seq, i))(carry_block)
                 #to_output_block = tf.keras.layers.Activation(end_activation, name = "fpn_%02d_output_%02d_Activation" % (seq, i))(to_output_block)
                 output_block[seq][ri] = carry_block

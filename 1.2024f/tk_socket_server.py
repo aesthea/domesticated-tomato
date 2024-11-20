@@ -50,13 +50,13 @@ if not os.path.isdir("c:/test"):
     os.mkdir("c:/test")
 
 warnings.filterwarnings("ignore") 
-CONNECTED = set()
+#CONNECTED = set()
 async def handler(websocket, path, model, port_no):
     print(path)
     try:
         async for rawdata in websocket:
             client_ip, client_port = websocket.remote_address
-            CONNECTED.add(websocket)
+            #CONNECTED.add(websocket)
             print(client_ip, client_port, datetime.datetime.now())
             datatype = type(rawdata)
             #print("DATA RECEIVE TYPE : ", datatype)
@@ -231,24 +231,20 @@ async def send(websocket, data):
             websocket.close()
         except Exception as e:
             print("E204", e)
-        try:
-            CONNECTED.remove(websocket)
-        except Exception as e:
-            print("E208", e)
 
-def broadcast(data):
-    loop = asyncio.get_event_loop()
-    tasks = []
-    for websocket in CONNECTED:
-        try:
-            asyncio.ensure_future(send(websocket, data))
-        except Exception as e0:
-            print("E220", e0)
-            try:
-                websocket.close()
-                CONNECTED.remove(websocket)
-            except Exception as e1:
-                print("E224", e1)
+##def broadcast(websocket, data):
+##    loop = asyncio.get_event_loop()
+##    tasks = []
+##    for websocket in CONNECTED:
+##        try:
+##            asyncio.ensure_future(send(websocket, data))
+##        except Exception as e0:
+##            print("E220", e0)
+##            try:
+##                websocket.close()
+##                CONNECTED.remove(websocket)
+##            except Exception as e1:
+##                print("E224", e1)
 
 async def clear_session():
     while True:
