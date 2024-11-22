@@ -1,53 +1,54 @@
 window.ANCHOR_SZ = 5;
 window.INPUT_SZ = 128;
-window.NMS_IOU = 0.001;
-window.FSDN_size = 800;
+window.NMS_IOU = 0.01;
+window.FSDN_size = 600;
 window.IMAGE_FORMAT = "jpg";
 window.SEGMENT_MIN_RATIO = 0.50;
 window.ALLOWABLE_TAGS = new Array("ok", "ng");
 
-console.log("script ver 2024.10.31.10.06")
-//CHANGE THE IP ADDRESS AND PORT TO TKBASIC LOCATION AND PORT SETTING.
-function socket_init(){
-	//PORT setting - refer to HARR VOTT setup.
-	let SOCKET_LIST = new Object;
-	let sock_list = new Array('ws://192.168.177.102:8860', 'ws://192.168.160.76:8790');
+SOCKLIST = new Array('ws://192.168.177.102:8860', 'ws://192.168.160.76:8790');
+
+console.log("script ver 2024.11.21.15.47")
+function socket_init(sockname){
+	//console.log("socket_init", window.socket_retries);
+	if(!window.hasOwnProperty("socket_list")){
+		window.socket_list = new Object;
+	}
+	let sock_list;
+	if(sockname){
+		sock_list = new Array(sockname);
+	}else{
+		sock_list = SOCKLIST;
+	}
 	for(i in sock_list){
 		let sockname = sock_list[i];
-		console.log(sockname);
-		SOCKET_LIST[sockname] = new WebSocket(sockname);
-		SOCKET_LIST[sockname].onclose = async (event) => {
+		window.socket_list[sockname] = new WebSocket(sockname);
+		window.socket_list[sockname].onclose = async (event) => {
 			console.error(event); 
-			if(window.socket_retries > 0){
-				if(window.hasOwnProperty("socket")){
-					if(!window.socket.readyState){
-						console.log("RECONNECT", sockname);
-						window.socket_retries -= 1;
-						SOCKET_LIST[sockname] = new WebSocket(sockname);						
-					}
-				}else{
-					console.log("RECONNECT", sockname);
-					window.socket_retries -= 1;
-					SOCKET_LIST[sockname] = new WebSocket(sockname);
+			if(window.socket_retries > 0 && !window.hasOwnProperty("socket")){
+				window.socket_retries --;
+				socket_init(sockname);
+			}else if(!window.hasOwnProperty("socket")){
+				if(window.hasOwnProperty("socket_list")){
+					//alert("SERVER DEAD");
+					window.location.replace("http://192.168.177.77/roller/Improvement/inspection_v3.html");
 				}
-			}else{
-				//alert("SERVER DEAD");
-				window.location.replace("http://192.168.177.77/roller/Improvement/inspection_v3.html")
+				delete(window.socket_list);
 			}
 		}
-		SOCKET_LIST[sockname].onopen = async (event) => {
+		window.socket_list[sockname].onopen = async (event) => {
 			if(window.hasOwnProperty("socket")){
 				if(!window.socket.readyState){
 					console.log("CONNECTED");
 					window.socket_retries = 10;
-					window.socket = SOCKET_LIST[sockname];					
+					window.socket = window.socket_list[sockname];
 				}else{
 					console.log("ABANDON", sockname);
 				}
 			}else{
 				console.log("CONNECTED", sockname);
 				window.socket_retries = 10;
-				window.socket = SOCKET_LIST[sockname];
+				window.socket = window.socket_list[sockname];
 			}
 		}
 	}

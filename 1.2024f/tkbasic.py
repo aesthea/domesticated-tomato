@@ -734,7 +734,7 @@ class widget:
         self.label_w_slider(self.frame3, 100, 200, 25, 8, 0, "Batch size", "batch_size", font_size = self.normal_font, min_value =16, max_value = 128, interval = 16, bind=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 8, 1, "Train Test", "train_test_ratio", font_size = self.normal_font, min_value =1, max_value = 0.5, interval = 0.1, bind=self.update)
 
-        self.logslider(self.frame3, 100, 200, 25, 9, 0, "Learning rate", "learning_rate", font_size = self.normal_font, min_value=0.01, max_value=0.0001, bind=self.update)
+        self.logslider(self.frame3, 100, 200, 25, 9, 0, "Learning rate", "learning_rate", font_size = self.normal_font, min_value=0.01, max_value=0.00001, bind=self.update)
         self.label_w_slider(self.frame3, 100, 200, 25, 9, 1, "training steps", "steps", font_size = self.normal_font, min_value =10, max_value = 100, interval = 10, bind=self.update)
 
         self.normalize_frac_frame = Frame(master = self.frame3, width = 300, height = 25)
@@ -1037,10 +1037,10 @@ class widget:
         with open("main_config.pik", "wb") as fio:
             pickle.dump(self.data, fio)
             
-        if self.data["savefile"]:
-            if len(self.data["savefile"]) > 3:
-                with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
-                    pickle.dump(self.data, fio)
+##        if self.data["savefile"]:
+##            if len(self.data["savefile"]) > 3:
+##                with open(self.data["savefile"] + "_cfg.pik", "wb") as fio:
+##                    pickle.dump(self.data, fio)
 
 
     def segment_image(self):

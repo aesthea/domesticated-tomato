@@ -22,7 +22,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers import SGD
 #import tensorflow_addons as tfa
 import urllib
-
+from metric import custom_metric
 
 import warnings
 warnings.filterwarnings("error", category = RuntimeWarning)
@@ -150,19 +150,20 @@ class loader:
         if os.path.isfile(tagfile):
             self.tagfile = tagfile
             file_df = pd.read_csv(tagfile, delimiter = ",", header = 0, names = column_names)
-            file_df.drop_duplicates(["category","label"], inplace=True, keep='last')
+            file_df.drop_duplicates(["category","label"], inplace=True, keep='first')
             file_df.reset_index(inplace=True)
         else:
             file_df = pd.DataFrame(columns = column_names)
         loaded_g = self.df.groupby(["category","label"], dropna=False)
         loaded_df = loaded_g.first().reset_index()[column_names]
         df = pd.concat([file_df, loaded_df], ignore_index = True)
-        df.drop_duplicates(["category","label"], inplace=True, keep='last')
+        df.drop_duplicates(["category","label"], inplace=True, keep='first')
         df.reset_index(inplace=True)
         #save function here maybe -----
         df.fillna(value = NAN_REPLACEMENT, inplace=True)
         df = df[column_names]
         if save_file:
+            print("SAVE TAG FILE: ", tagfile)
             df.to_csv(tagfile)
         #-----------------------
         self.df_label = df
@@ -241,6 +242,7 @@ class loader:
                 self.df_label = self.df_label[["category", "label", "color"]]
                 try:
                     with open(self.tagfile, "wb") as fio:
+                        print("UPDATE TO TAG FILE: ", self.tagfile)
                         self.df_label.to_csv(self.tagfile)
                 except Exception as e:
                     print("FAILED TO SAVE TAG", e)
@@ -425,8 +427,12 @@ class detection_model:
         self.m.compile(optimizer = optimizer, \
                        #loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
                        loss = [det.classification_loss, det.regression_loss], \
+##                       metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
+##                                  [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]])
+##                       metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
+##                                  [keras.metrics.MeanSquaredError()]])
                        metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
-                                  [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]])
+                                  [custom_metric()]])
         self.c = loader()
         self.null = classes - 1
         self.regions = detection_region
@@ -614,8 +620,12 @@ class detection_model:
                   'val_classification_loss',
                   'classification_sparse_categorical_accuracy', \
                   'regression_io_u', \
+                  'regression_accuracy', \
+                  'regression_custom_metric', \
                   'val_classification_sparse_categorical_accuracy', \
-                  'val_regression_io_u_1'):
+                  'val_regression_io_u_1', \
+                  'val_regression_accuracy', \
+                  'val_regression_custom_metric'):
             if k in self.history.history:
                 v = self.history.history[k]
                 plt.plot(epochs_range, v, label=k)
@@ -838,12 +848,12 @@ class anchor:
         b, h, w, c = image.shape
         ratio = h / w
         if np.ndim(bounding_box_with_class) == 3:
-            inbb_mask = np.all(bounding_box_with_class[:, :,[2,3]] - bounding_box_with_class[:, :,[0,1]] >= 0, 2)            
+            inbb_mask = np.all(bounding_box_with_class[:, :,[2,3]] - bounding_box_with_class[:, :,[0,1]] > 0, 2)            
             bounding_box_with_class = bounding_box_with_class[inbb_mask]
             bounding_box_with_class = np.expand_dims(bounding_box_with_class, 0)
         self.prepare_box(self.anchor_level, ratio)
         BOXES = self.boxes
-        if np.ndim(bounding_box_with_class) == 3:
+        if np.ndim(bounding_box_with_class) == 3 and np.any(bounding_box_with_class):
             box_to_pix = BOXES * np.array(image.shape)[[1,2,1,2]]
             input_bb_box = []
             for bb in bounding_box_with_class[0]:
@@ -1133,7 +1143,7 @@ class load_model:
                          augment_seq = augment_seq, \
                          callback_earlystop = callback_earlystop, \
                          normalize_frac = normalize_frac)
-        self.model.save(self.MODEL_NAME)
+        #self.model.save(self.MODEL_NAME)
 
 
     def chart(self):
@@ -1321,25 +1331,8 @@ def test(rate = 0.01, epoch = 100):
     d.load_csv("C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv")
     d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/AI_Auto_Cap/output/vott-json-export/OG_auto_capacitance_OK-export.json")
     
-    d.load_exif("C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/test")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_LOADTRACK/202409/output/vott-json-export/ECS_LOADTRACK_PROJECT_202409_good-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_LOADTRACK/202409/output/vott-json-export/ECS_LOADTRACK_PROJECT_202409_ng-export.json")
-    
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/202410/output/vott-json-export/TAPING_PROBE_PIN2_202410_ok-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/20240826/output/vott-json-export/taping_probe_pin_2hole_rotate_ng-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/TAPING_PROBE_PIN/20240826/output/vott-json-export/taping_pin_probe_2hole_rotate-export.json")
-    
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/TRAINING/output/vott-json-export/ECS_ROLLER-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/TRAINING2/output/vott-json-export/ECS_ROLLER_2-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/roller/output/vott-json-export/ECS-ROLLER-3-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/20240829/output/vott-json-export/ecs_roller_rot_ng-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/20240829/output/vott-json-export/ecs_roller_rot-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/202410/output/vott-json-export/ROLLER_202410_dirty-export.json")
-    d.load_vott("C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/ECS_ROLLER/202410/output/vott-json-export/ROLLER_202410_ok-export.json")
-    
-    
     d.prepare("C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/detection.csv", 0.7)
-    d.train(rate, epoch, 20, train_test_ratio = 1.0, null_ratio = 1.0, anchor_size = 5)
+    d.train(rate, epoch, 20, train_test_ratio = 0.7, null_ratio = 1.0, anchor_size = 5)
     d.save()
     return d
     #d.predict("C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/puyo world/b08.png", (64,64,3), debug = True)
