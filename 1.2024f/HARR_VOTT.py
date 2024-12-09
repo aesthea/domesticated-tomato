@@ -23,6 +23,7 @@ from tensorflow.keras.optimizers import SGD
 #import tensorflow_addons as tfa
 import urllib
 from metric import custom_metric
+import gc
 
 import warnings
 warnings.filterwarnings("error", category = RuntimeWarning)
@@ -259,7 +260,7 @@ class loader:
             yield k, RAW_IM, BB_INDICE, IS_SEGMENT
 
 
-    def batch(self, test_mode = False, regions = 5, null_label = 999, batch_size = 16, anchor_level = 2, input_shape = (128, 128, 3), augment_seq = 255, null_ratio = 1, normalize_image = False):
+    def batch(self, test_mode = False, regions = 5, null_label = 999, batch_size = 16, anchor_level = 2, input_shape = (128, 128, 3), augment_seq = 255, null_ratio = 1, normalize_image = False, fill_bblabel = False):
         #mode 0 = train, mode 1 = test
         if test_mode:
             sampling = self.test
@@ -286,20 +287,30 @@ class loader:
                     anc_iter = [[RAW_IM, BB_INDICE]]
                 for ni, nb in anc_iter:
                     aug_im, aug_bb, aug_lb = self.augment_batch(ni, nb, augment_seq)
+                    ac, aa = aug_bb.shape
+                    #print(aug_bb.shape, aug_lb.shape)
+                    if fill_bblabel:
+                        if ac > 0:
+                            aug_bb = np.tile(aug_bb, [10, 1])
+                            aug_lb = np.tile(aug_lb, [10, 1])
+                            #print(aug_bb.shape)
                     IMAGE_SHAPE = aug_im.shape
                     if input_shape[-1] == 1:
                         aug_im = tf.image.rgb_to_grayscale(aug_im).numpy()
                     if IMAGE_SHAPE[:2] != input_shape[:2]:
                         #aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.BILINEAR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()
-                        aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()                        
-                    if batch_boundary_box.shape[1] > aug_bb.shape[0]:
-                        bb_filler = np.full([batch_boundary_box.shape[1] - aug_bb.shape[0], 4], [0, 0, 1, 1])
-                        label_filler = np.full([batch_boundary_box.shape[1] - aug_bb.shape[0], 1], null_label)
-                        aug_bb = np.append(aug_bb, bb_filler, axis = 0)
-                        aug_lb = np.append(aug_lb, label_filler, axis = 0)
-                    elif batch_boundary_box.shape[1] < aug_bb.shape[0]:
-                        aug_bb = aug_bb[: batch_boundary_box.shape[1], :]
-                        aug_lb = aug_lb[: batch_boundary_box.shape[1], :]  
+                        aug_im = tf.image.resize(aug_im, input_shape[:2], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR, preserve_aspect_ratio=False, antialias=False, name=None).numpy()
+                    #if batch_boundary_box.shape[1] > aug_bb.shape[0]:
+                        #bb_filler = np.full([batch_boundary_box.shape[1] - ac, 4], [0, 0, 1, 1])
+                        #label_filler = np.full([batch_boundary_box.shape[1] - ac, 1], null_label)
+                    bb_filler = np.full([10, 4], [0, 0, 1, 1])
+                    label_filler = np.full([10, 1], null_label)
+                    aug_bb = np.append(aug_bb, bb_filler, axis = 0)
+                    aug_lb = np.append(aug_lb, label_filler, axis = 0)
+                    #elif batch_boundary_box.shape[1] < aug_bb.shape[0]:
+                    aug_bb = aug_bb[: batch_boundary_box.shape[1], :]
+                    aug_lb = aug_lb[: batch_boundary_box.shape[1], :]
+                    
                     batch_image = np.append(batch_image, np.expand_dims(aug_im, 0), axis = 0)
                     batch_boundary_box = np.append(batch_boundary_box, np.expand_dims(aug_bb, 0), axis = 0)
                     batch_label = np.append(batch_label, np.expand_dims(aug_lb, 0), axis = 0)
@@ -427,10 +438,6 @@ class detection_model:
         self.m.compile(optimizer = optimizer, \
                        #loss = {'regression': det.regression_loss, 'classification': det.classification_loss})
                        loss = [det.classification_loss, det.regression_loss], \
-##                       metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
-##                                  [keras.metrics.IoU(num_classes=2, target_class_ids=[0])]])
-##                       metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
-##                                  [keras.metrics.MeanSquaredError()]])
                        metrics = [[keras.metrics.SparseCategoricalAccuracy()], \
                                   [custom_metric()]])
         self.c = loader()
@@ -482,7 +489,9 @@ class detection_model:
               null_ratio = 1.0, \
               augment_seq = None, \
               callback_earlystop = False,
-              normalize_frac = True):
+              normalize_frac = True,
+              fill_bblabel = False):
+        gc.collect()
         self.m.optimizer.learning_rate = learning_rate
         print("PREPARE TRAIN BATCH")
         self.c.frac(train_test_ratio, normalize_frac)
@@ -494,7 +503,8 @@ class detection_model:
                              input_shape = self.image_shape, \
                              augment_seq = augment_seq, \
                              null_ratio = null_ratio, \
-                             normalize_image = True)
+                             normalize_image = True,
+                             fill_bblabel = fill_bblabel)
         test = self.c.batch(test_mode = True, \
                             regions = self.regions, \
                             null_label = self.null, \
@@ -503,7 +513,8 @@ class detection_model:
                             input_shape = self.image_shape, \
                             augment_seq = augment_seq, \
                             null_ratio = null_ratio, \
-                            normalize_image = True)
+                            normalize_image = True,
+                            fill_bblabel = fill_bblabel)
         if train_test_ratio < 1 and train_test_ratio > 0:
             if callback_earlystop:
                 callback = tf.keras.callbacks.EarlyStopping(monitor = "val_loss", patience = 20, verbose = 0, mode = "min", restore_best_weights = True)
@@ -557,7 +568,7 @@ class detection_model:
             print(e)
 
         
-    def sanity_check(self, batch_size = 36, null_ratio = 1.0, anchor_size = 4, augment_seq = None, normalize_frac = True):
+    def sanity_check(self, batch_size = 36, null_ratio = 1.0, anchor_size = 4, augment_seq = None, normalize_frac = True, fill_bblabel = False):
         original_option = copy.copy(self.options)
         self.options["batch_size"] = batch_size
         self.options["anchor_size"] = anchor_size
@@ -576,7 +587,8 @@ class detection_model:
                                                     anchor_level = anchor_size, \
                                                     input_shape = self.image_shape, \
                                                     augment_seq = augment_seq, \
-                                                    null_ratio = null_ratio)
+                                                    null_ratio = null_ratio,
+                                                    fill_bblabel = fill_bblabel)
         x,(y,z) = next(self.sanity_check_sample)
         if np.max(x) <= 1.0:
             x = x * 255
@@ -603,6 +615,7 @@ class detection_model:
                 ax[row, col].imshow(img)
                 ax[row, col].axis('off')
                 ax[row, col].set_title(title, fontdict= {'fontsize': 6})
+        #fig.tight_layout()
         plt.show()
         plt.clf()
         plt.close()
@@ -653,7 +666,8 @@ class detection_model:
                 nms_iou = 0.01, \
                 segment_minimum_ratio = 0.75, \
                 output_size = 480, \
-                debug = False):
+                debug = False, \
+                no_text = False):
         model_shape = self.m.input.shape[1:]
         model_channel = model_shape[-1]
         if type(fp) != np.ndarray:
@@ -708,6 +722,7 @@ class detection_model:
                         im = tf.keras.preprocessing.image.array_to_img(im)
                         ax[row, col].imshow(im)
                         ax[row, col].axis('off')
+                    fig.tight_layout()
                     plt.show()
                     plt.clf()
                     plt.close()
@@ -744,7 +759,8 @@ class detection_model:
         prediction_result = []
         for k in ktags:
             pos = (boundary_boxes[k][[1, 0]] * [image.shape[2], image.shape[1]] + [5, 15]).astype(np.int16)
-            output_im = cv2.putText(output_im, "%s (%0.1f%%)" % (ktags[k]['label'], score[k] * 100), pos, cv2.FONT_HERSHEY_PLAIN, 1, colors[k], 1)
+            if not no_text:
+                output_im = cv2.putText(output_im, "%s (%0.1f%%)" % (ktags[k]['label'], score[k] * 100), pos, cv2.FONT_HERSHEY_PLAIN, 0.8, colors[k], 1)
             result = {}
             result["x1"] = int(boundary_boxes[k][1] * image.shape[2])
             result["y1"] = int(boundary_boxes[k][0] * image.shape[1])
@@ -844,7 +860,7 @@ class anchor:
         return box
 
 
-    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 32, segment_minimum_ratio = 0.75, null_ratio = 1, fp = None):
+    def make(self, image, bounding_box_with_class = [[]], overlap_requirement = 0.9, max_output_box_nobb = 81, segment_minimum_ratio = 0.75, null_ratio = 1, fp = None):
         b, h, w, c = image.shape
         ratio = h / w
         if np.ndim(bounding_box_with_class) == 3:
@@ -996,6 +1012,7 @@ def sanity_check(gen):
             ax[row, col].imshow(img)
             ax[row, col].axis('off')
             ax[row, col].set_title(title, fontdict= {'fontsize': 6})
+    fig.tight_layout()
     plt.show()
     plt.clf()
     plt.close()
@@ -1078,7 +1095,7 @@ class load_model:
         self.model.prepare(tagfile, 1.0)
         
 
-    def predict(self, fp, show = True, input_shape = None, anchor_size = None, nms_iou = None, segment_minimum_ratio = None, output_size = None, debug = False):
+    def predict(self, fp, show = True, input_shape = None, anchor_size = None, nms_iou = None, segment_minimum_ratio = None, output_size = None, debug = False, no_text = False):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
@@ -1101,7 +1118,8 @@ class load_model:
                                                              nms_iou = nms_iou, \
                                                              segment_minimum_ratio = segment_minimum_ratio, \
                                                              output_size = output_size, \
-                                                             debug = debug)
+                                                             debug = debug, \
+                                                             no_text = no_text)
         if show:
             plt.imshow(im)
             plt.axis('off')
@@ -1112,7 +1130,7 @@ class load_model:
             return im, result_rawdata
 
 
-    def train(self, learning_rate = 0.01, epoch = 10, steps = 10, train_test_ratio = None, batch_size = None, anchor_size = None, null_ratio = None, augment_seq = None, callback_earlystop = False, normalize_frac = True):
+    def train(self, learning_rate = 0.01, epoch = 10, steps = 10, train_test_ratio = None, batch_size = None, anchor_size = None, null_ratio = None, augment_seq = None, callback_earlystop = False, normalize_frac = True, fill_bblabel = False):
         if anchor_size:
             self.ANCHOR_SIZE = anchor_size
         else:
@@ -1142,8 +1160,10 @@ class load_model:
                          null_ratio = null_ratio, \
                          augment_seq = augment_seq, \
                          callback_earlystop = callback_earlystop, \
-                         normalize_frac = normalize_frac)
+                         normalize_frac = normalize_frac, \
+                         fill_bblabel = fill_bblabel)
         #self.model.save(self.MODEL_NAME)
+        gc.collect()
 
 
     def chart(self):
@@ -1172,7 +1192,7 @@ class load_model:
             print(e)
 
 
-    def sanity_check(self, batch_size = None, null_ratio = None, anchor_size = None, augment_seq = None, normalize_frac = True):
+    def sanity_check(self, batch_size = None, null_ratio = None, anchor_size = None, augment_seq = None, normalize_frac = True, fill_bblabel = False):
         if anchor_size != None:
             self.ANCHOR_SIZE = anchor_size
         else:
@@ -1193,7 +1213,8 @@ class load_model:
                                 null_ratio = null_ratio, \
                                 anchor_size = anchor_size, \
                                 augment_seq = augment_seq, \
-                                normalize_frac = normalize_frac)
+                                normalize_frac = normalize_frac, \
+                                fill_bblabel = fill_bblabel)
 
 
     def folder_check(self, folder, anchor_size = None, nms_iou = None, segment_minimum_ratio = None):
@@ -1225,16 +1246,18 @@ class load_model:
             fp = os.path.join(folder, fn)
             print(i, "image trial")
             im, result_rawdata = self.predict(fp, \
-                              show = False, \
-                              input_shape = None, \
-                              anchor_size = anchor_size, \
-                              nms_iou = nms_iou, \
-                              segment_minimum_ratio = segment_minimum_ratio, \
-                              output_size = 480, \
-                              debug = False)
+                                              show = False, \
+                                              input_shape = None, \
+                                              anchor_size = anchor_size, \
+                                              nms_iou = nms_iou, \
+                                              segment_minimum_ratio = segment_minimum_ratio, \
+                                              output_size = 480, \
+                                              debug = False, \
+                                              no_text = False)
             ax[row, col].set_title(fn, fontdict= {'fontsize': 6})
             ax[row, col].imshow(im)
             ax[row, col].axis('off')
+        fig.tight_layout()
         fig.suptitle(os.path.split(folder)[-1], fontsize=11)
         plt.show()
         plt.clf()
@@ -1307,7 +1330,7 @@ def hex2rgb(s):
 
 def model():
     #__init__(self, MODEL_NAME, IMAGE_SHAPE, REGIONS, CLASSES, DROPOUT, BACKBONE):
-    m = load_model("test", (96, 96, 3), 2, 100, 0.2,  "MobileNetV2", "Adam")
+    m = load_model("test", (96, 96, 3), 5, 100, 0.2,  "MobileNetV2", "Adam")
     paths = ["C:/Users/CSIPIG0140/Desktop/TF SIMPLE IMG CLASSIFIER/TRAINING/LABEL_FILE.csv", \
              "C:/Users/CSIPIG0140/Desktop/TRAIN IMAGE/AI_Auto_Cap/output/vott-json-export/OG_auto_capacitance_OK-export.json", \
              "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/test", \

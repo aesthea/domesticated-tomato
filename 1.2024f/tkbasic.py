@@ -754,10 +754,19 @@ class widget:
         augment = self.value_type(self.inputs["augment"], int)
         self.top_augment_activate.config(text = "Augment : %s" % augment)
 
-        self.spacer0301 = Frame(master = self.frame3, width = 600, height = 25)
+        self.fill_bblabel_frame = Frame(master = self.frame3, width = 300, height = 25)
+        self.fill_bblabel_frame.grid_propagate(0)
+        self.fill_bblabel_frame.pack_propagate(0)
+        self.fill_bblabel_frame.grid(column = 0, row = 11, columnspan = 1)
+        self.fill_bblabel_value = BooleanVar(self.root)
+        self.fill_bblabel_check = Checkbutton(self.fill_bblabel_frame, text='Fill BBLabel', variable = self.fill_bblabel_value, onvalue=True, offvalue=False, font = self.normal_font, command = self.update)
+        self.fill_bblabel_check.pack(fill = BOTH, expand = True)      
+
+
+        self.spacer0301 = Frame(master = self.frame3, width = 300, height = 25)
         self.spacer0301.grid_propagate(0)
         self.spacer0301.pack_propagate(0)
-        self.spacer0301.grid(column = 0, row = 11, columnspan = 2)
+        self.spacer0301.grid(column = 1, row = 11, columnspan = 1)
         
         self.label_w_input(self.frame3, 100, 500, 25, 12, 0, "Test folder", "testfolder", columnspan = 2, bind=self.update)
 
@@ -936,6 +945,16 @@ class widget:
         else:
             self.normalize_frac_value.set(False)
             self.data["normalize_frac"] = False
+
+        if "fill_bblabel" in self.data:
+            if self.data["fill_bblabel"]:
+                self.fill_bblabel_value.set(self.data["fill_bblabel"])
+            else:
+                self.fill_bblabel_value.set(False)
+                self.data["fill_bblabel"] = False
+        else:
+            self.fill_bblabel_value.set(False)
+            self.data["fill_bblabel"] = False
         #self.update()
         
             
@@ -1034,6 +1053,8 @@ class widget:
 
         self.data["normalize_frac"] = self.normalize_frac_value.get()
 
+        self.data["fill_bblabel"] = self.fill_bblabel_value.get()
+
         with open("main_config.pik", "wb") as fio:
             pickle.dump(self.data, fio)
             
@@ -1095,6 +1116,7 @@ class widget:
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
         NORMALIZE_FRAC = self.normalize_frac_value.get()
+        FILL_BBLABEL = self.fill_bblabel_value.get()
         print("TRAINING : ", EPOCH, "Learning rate : ", LEARNING_RATE)
         self.DET_MODEL.train(LEARNING_RATE, \
                              EPOCH, \
@@ -1105,7 +1127,8 @@ class widget:
                              NULL_RATIO, \
                              AUGMENT, \
                              callback_earlystop = early_stopping, \
-                             normalize_frac = NORMALIZE_FRAC)
+                             normalize_frac = NORMALIZE_FRAC, \
+                             fill_bblabel = FILL_BBLABEL)
         self.DET_MODEL.save()
         self.DET_MODEL.chart()
         self.DET_MODEL.save_config()
@@ -1179,11 +1202,13 @@ class widget:
         STEPS = self.value_type(self.inputs["steps"], int)
         AUGMENT = self.value_type(self.inputs["augment"], int)
         NORMALIZE_FRAC = self.normalize_frac_value.get()
+        FILL_BBLABEL = self.fill_bblabel_value.get()
         self.DET_MODEL.sanity_check(BATCH_SIZE, \
                                     NULL_RATIO, \
                                     ANCHOR_SIZE, \
                                     AUGMENT, \
-                                    normalize_frac = NORMALIZE_FRAC)
+                                    normalize_frac = NORMALIZE_FRAC, \
+                                    fill_bblabel = FILL_BBLABEL)
 
 
     def predict_image(self, debug = False):

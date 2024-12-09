@@ -1,7 +1,6 @@
 import tensorflow as tf
 
 class bbiou(tf.keras.metrics.Metric):
-    #CANNOT USED DURING FIT
     def __init__(self, name = 'bbiou', **kwargs):
         super(bbiou, self).__init__(**kwargs)
         self.tp = self.add_weight('tp', initializer = 'zeros')
@@ -34,8 +33,13 @@ class bbiou(tf.keras.metrics.Metric):
         self.tp.assign(0)
         self.count.assign(0)
 
+    @tf.function
     def result(self):
-        return self.tp / self.count
+        epsilon = 1e-4
+        res = self.tp / (self.count + 1.0)
+        res = tf.cond(tf.greater(res, 1.0), lambda: 1.0, lambda: res)
+        res = tf.cond(tf.greater(0.0, res), lambda: 0.0, lambda: res)
+        return res
 
 class custom_metric(tf.keras.metrics.Metric):
     def __init__(self, name = 'custom_metric', **kwargs):

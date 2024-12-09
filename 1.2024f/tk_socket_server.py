@@ -18,6 +18,7 @@ import warnings
 import pickle
 import base64
 from io import BytesIO
+import gc
 
 
 #SPEC_LOADER = "C:/Users/CSIPIG0140/Desktop/HARR_VOTT TK/HARRVOTT_2024f/HARR_VOTT.py"
@@ -52,12 +53,11 @@ if not os.path.isdir("c:/test"):
 warnings.filterwarnings("ignore") 
 #CONNECTED = set()
 async def handler(websocket, path, model, port_no):
-    print(path)
+    #print(path)
     try:
         async for rawdata in websocket:
             client_ip, client_port = websocket.remote_address
-            #CONNECTED.add(websocket)
-            print(client_ip, client_port, datetime.datetime.now())
+            print("\n", client_ip, client_port, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             datatype = type(rawdata)
             #print("DATA RECEIVE TYPE : ", datatype)
             if datatype == bytes:
@@ -101,7 +101,7 @@ async def handler(websocket, path, model, port_no):
                         fio.write(bytedata)
                     if "tensorflow"  in data:
                         if data["tensorflow"] and ext.lower() in (".bmp", ".jpg", ".png"):
-                            print("TENSORFLOW", data["tensorflow"])
+                            print("TENSORFLOW FUNC", data["tensorflow"])
                             if model:
                                 NMS_IOU = model.NMS_IOU
                                 ANCHOR_SZ = model.ANCHOR_SIZE
@@ -189,18 +189,19 @@ async def handler(websocket, path, model, port_no):
                                 
             asyncio.ensure_future(send(websocket, json.dumps(result, ensure_ascii = True)))
             print(port_no, "SEND COMPLETE", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            gc.collect()
                             
     except websockets.exceptions.ConnectionClosedError as e:
         client_ip, client_port = websocket.remote_address
-        print("E134", client_ip, e)
+        print("ConnectionClosedError", client_ip, e)
         
     except websockets.exceptions.ConnectionClosed as e:
         client_ip, client_port = websocket.remote_address
-        print("E139", client_ip, e)
+        print("ConnectionClosed", client_ip, e)
 
     except Exception as e:
         client_ip, client_port = websocket.remote_address
-        print("E144", client_ip, e)
+        print("Exception", client_ip, e)
         
     finally:
         try:
